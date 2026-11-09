@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Hệ thống Cảnh báo Khoảng cách An toàn Xe hơi theo Quy định Pháp luật Việt Nam
-Cơ sở pháp lý: Thông tư số 31/2019/TT-BGTVT & Luật Trật tự, An toàn giao thông đường bộ 2024.
+Cơ sở pháp lý: Thông tư số 38/2024/TT-BGTVT (thay thế Thông tư 31/2019/TT-BGTVT từ ngày 01/01/2025)
+& Luật Trật tự, An toàn giao thông đường bộ 2024 (Luật số 36/2024/QH15)
+& Nghị định số 168/2024/NĐ-CP (Quy định xử phạt vi phạm và cơ chế trừ điểm GPLX).
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -35,14 +37,14 @@ class SafetyAssessment:
 class VietnamTrafficLegalStandards:
     """
     Quy chuẩn khoảng cách an toàn phương tiện theo Pháp luật Việt Nam:
-    - Thông tư số 31/2019/TT-BGTVT (Điều 11)
-    - Luật Trật tự, An toàn Giao thông Đường bộ 2024
+    - Thông tư số 38/2024/TT-BGTVT (Điều 11) - Ban hành 15/11/2024, có hiệu lực 01/01/2025 thay thế TT 31/2019
+    - Luật Trật tự, An toàn Giao thông Đường bộ 2024 (Luật số 36/2024/QH15)
+    - Nghị định số 168/2024/NĐ-CP (quy định trừ điểm GPLX)
     """
 
-    # Bảng khoảng cách tối thiểu ở điều kiện mặt đường khô ráo (Điều 11 Thông tư 31/2019/TT-BGTVT)
-    # Dải tốc độ: (V_min, V_max, Khoang_cach_toi_thieu_m)
+    # Bảng khoảng cách an toàn tối thiểu ở điều kiện mặt đường khô ráo (Điều 11 Thông tư 38/2024/TT-BGTVT)
     SPEED_DISTANCE_TABLE = [
-        (0.0, 60.0, 35.0),      # V <= 60 km/h: Chủ động giữ khoảng cách phù hợp (tham chiếu tối thiểu 35m ở 60km/h, quy tắc 2-3s)
+        (0.0, 60.0, 35.0),      # V <= 60 km/h: Chủ động giữ khoảng cách phù hợp (tham chiếu tối thiểu 35m ở 60km/h, quy tắc 2.5-3s)
         (60.0, 80.0, 55.0),     # 60 < V <= 80 km/h: Tối thiểu 55m
         (80.0, 100.0, 70.0),    # 80 < V <= 100 km/h: Tối thiểu 70m
         (100.0, 120.0, 100.0),  # 100 < V <= 120 km/h: Tối thiểu 100m
@@ -50,7 +52,7 @@ class VietnamTrafficLegalStandards:
     ]
 
     # Hệ số nhân khoảng cách khi thời tiết xấu (trời mưa, đường trơn trượt, sương mù, dốc quanh co)
-    # Khoản 3 Điều 11 Thông tư 31/2019/TT-BGTVT yêu cầu phải điều chỉnh khoảng cách an toàn lớn hơn
+    # Khoản 3 Điều 11 Thông tư 38/2024/TT-BGTVT yêu cầu phải điều chỉnh khoảng cách an toàn lớn hơn
     WET_ROAD_MULTIPLIER = 1.40  # Tăng 40% khoảng cách hoặc tương đương quy tắc 4 giây
 
     @classmethod
@@ -61,25 +63,22 @@ class VietnamTrafficLegalStandards:
         speed = max(0.0, float(speed_kmh))
         
         if speed <= 10.0:
-            # Xe di chuyển rất chậm, kẹt xe / bò trên đường
             base_dist = 5.0
             citation = "Vận tốc rất thấp (<10 km/h): Giữ khoảng cách dừng tối thiểu 3-5m tránh trôi xe"
         elif speed < 60.0:
-            # Khoản 2 Điều 11: V < 60 km/h: Người lái xe phải chủ động giữ khoảng cách an toàn phù hợp
-            # Áp dụng quy tắc 2.5 giây thực nghiệm chuẩn ADAS đô thị
             time_gap = 2.5
             calc_dist = (speed * 1000.0 / 3600.0) * time_gap
             base_dist = max(15.0, min(35.0, calc_dist))
-            citation = f"Khoản 2 Điều 11 TT 31/2019/TT-BGTVT (V < 60 km/h: Chủ động giữ khoảng cách an toàn phù hợp, khuyến nghị quy tắc 2.5s: {base_dist:.0f}m)"
+            citation = f"Điều 11 TT 38/2024/TT-BGTVT (V < 60 km/h: Chủ động giữ khoảng cách an toàn phù hợp, khuyến nghị quy tắc 2.5s: {base_dist:.0f}m)"
         elif 60.0 <= speed <= 80.0:
             base_dist = 55.0
-            citation = "Khoản 1 Điều 11 TT 31/2019/TT-BGTVT: 60 < V <= 80 km/h -> Tối thiểu 55m"
+            citation = "Điều 11 TT 38/2024/TT-BGTVT: 60 < V <= 80 km/h -> Cự ly tối thiểu 55m"
         elif 80.0 < speed <= 100.0:
             base_dist = 70.0
-            citation = "Khoản 1 Điều 11 TT 31/2019/TT-BGTVT: 80 < V <= 100 km/h -> Tối thiểu 70m"
+            citation = "Điều 11 TT 38/2024/TT-BGTVT: 80 < V <= 100 km/h -> Cự ly tối thiểu 70m"
         elif 100.0 < speed <= 120.0:
             base_dist = 100.0
-            citation = "Khoản 1 Điều 11 TT 31/2019/TT-BGTVT: 100 < V <= 120 km/h -> Tối thiểu 100m"
+            citation = "Điều 11 TT 38/2024/TT-BGTVT: 100 < V <= 120 km/h -> Cự ly tối thiểu 100m"
         else:
             base_dist = 120.0
             citation = "V > 120 km/h (Vượt tốc độ cao tốc tối đa): Khoảng cách an toàn tối thiểu khuyến nghị >= 120m"
@@ -99,26 +98,16 @@ class VietnamTrafficLegalStandards:
         relative_speed_kmh: float = 0.0,
         weather: WeatherCondition = WeatherCondition.DRY
     ) -> SafetyAssessment:
-        """
-        Đánh giá an toàn toàn diện dựa trên luật pháp và chỉ số Time-To-Collision (TTC)
-        - relative_speed_kmh = V_xe_minh - V_xe_truoc (nếu dương là đang áp sát xe trước)
-        """
         legal_min, citation = cls.get_legal_min_distance(speed_kmh, weather)
-        rec_dist = legal_min * 1.15  # Khuyến nghị giữ dư 15% làm biên an toàn
+        rec_dist = legal_min * 1.15
 
-        # Tính toán Time-To-Collision (TTC)
-        # Nếu xe mình đang lao vào xe trước với vận tốc tương đối v_rel (m/s)
         v_approach_mps = (relative_speed_kmh * 1000.0 / 3600.0)
         if v_approach_mps > 0.5:
             ttc = actual_distance_m / v_approach_mps
         else:
-            # Nếu xe trước chạy cùng tốc độ hoặc đang xa dần, dùng vận tốc tuyệt đối xe mình để ước tính phanh khẩn cấp
             v_host_mps = max(1.0, speed_kmh * 1000.0 / 3600.0)
             ttc = actual_distance_m / v_host_mps
 
-        # Phân loại mức cảnh báo:
-        # Ngưỡng khẩn cấp: Khoảng cách < 60% mức luật định HOẶC TTC < 1.8s
-        # Ngưỡng cảnh báo: Khoảng cách < mức luật định HOẶC TTC < 2.8s
         if actual_distance_m < (0.60 * legal_min) or (ttc < 1.8 and v_approach_mps > 0):
             level = AlertLevel.CRITICAL
             status_text = f"NGUY HIỂM: BÁM ĐUÔI QUÁ GẦN! ({actual_distance_m:.1f}m < {legal_min:.0f}m quy định)"

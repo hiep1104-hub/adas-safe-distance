@@ -15,7 +15,7 @@ from core.detector import VehicleDetector
 
 
 def test_legal_standards():
-    print("--- 1. Kiểm tra Quy chuẩn Pháp luật (TT 31/2019/TT-BGTVT) ---")
+    print("--- 1. Kiểm tra Quy chuẩn Pháp luật (TT 38/2024/TT-BGTVT thay thế TT 31/2019) ---")
     
     # Test dải tốc độ khô ráo
     dist_60, cit_60 = VietnamTrafficLegalStandards.get_legal_min_distance(60.0, WeatherCondition.DRY)
