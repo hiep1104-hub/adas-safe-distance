@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ADAS SafeDist">
   <meta name="theme-color" content="#000000">
-  <title>ADAS SafeDistance Pro - Tự Động 100% Khi Lái Xe</title>
+  <title>ADAS SafeDistance Pro - Tự Động Toàn Diện (Tốc Độ, Cấm Xe, Cấm Giờ, Đỗ Chẵn Lẻ)</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 
@@ -23,25 +23,26 @@
       <canvas id="ar-canvas"></canvas>
     </div>
 
-    <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) - TỰ ĐỘNG HOÀN TOÀN -->
+    <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) -->
     <div id="top-hud">
-      <!-- BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127) - TỰ ĐỘNG CẬP NHẬT TỪ CAMERA / GPS -->
+      <!-- BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127) - TỰ ĐỘNG NHẬN DIỆN -->
       <div class="speed-sign-badge" id="sign-speed-limit" title="Tốc độ tối đa tự động nhận diện">
         <span class="speed-sign-label" id="speed-source-label">TỰ ĐỘNG</span>
         <span id="limit-number">80</span>
       </div>
 
-      <div class="hud-pill" id="gps-status">
-        <span id="gps-dot">🟢</span>
-        <span id="gps-text">GPS: Tự động</span>
+      <!-- HUY HIỆU ĐỖ XE NGÀY CHẴN / LẺ TỰ ĐỘNG THEO LỊCH HÔM NAY -->
+      <div class="hud-pill" id="parking-day-badge" onclick="toggleParkingAdvisor()">
+        <span id="parking-icon">🅿️</span>
+        <span id="parking-day-text">Hôm nay: Ngày Lẻ</span>
       </div>
 
-      <div class="hud-pill" id="btn-mode" onclick="toggleDemoMode()">
-        <span id="mode-icon">📷</span>
-        <span id="mode-text">Camera Tự Động</span>
+      <div class="hud-pill" id="btn-vehicle-type" onclick="toggleVehicleType()">
+        <span id="vehicle-icon">🚗</span>
+        <span id="vehicle-text">Ô tô con</span>
       </div>
 
-      <!-- NÚT XOAY MÀN HÌNH TÙY Ý (NGANG / ĐỨNG / TỰ ĐỘNG) -->
+      <!-- NÚT XOAY MÀN HÌNH TÙY Ý (NGANG / ĐỨNG) -->
       <div class="hud-pill" id="btn-orientation" onclick="cycleOrientation()">
         <span id="orient-icon">🔄</span>
         <span id="orient-text">Tự động</span>
@@ -63,22 +64,51 @@
       <div id="alert-subtext">Căn cứ Thông tư 38/2024/TT-BGTVT (thay thế TT 31/2019)</div>
     </div>
 
-    <!-- HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102) -->
+    <!-- HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102, P.103a CẤM Ô TÔ, CẤM THEO GIỜ) -->
     <div id="forbidden-road-alert" class="forbidden-alert-box hidden" onclick="dismissForbiddenAlert()">
-      <div class="forbidden-icon">⛔</div>
+      <div class="forbidden-icon" id="forbidden-box-icon">⛔</div>
       <div class="forbidden-info">
-        <div class="forbidden-title">CẢNH BÁO: ĐƯỜNG CẤM / NGƯỢC CHIỀU!</div>
-        <div class="forbidden-sub">Camera phát hiện Biển cấm — Không được đi vào!</div>
+        <div class="forbidden-title" id="forbidden-box-title">CẢNH BÁO: ĐƯỜNG CẤM!</div>
+        <div class="forbidden-sub" id="forbidden-box-sub">Camera phát hiện biển cấm — Không được đi vào!</div>
+      </div>
+    </div>
+
+    <!-- BẢNG HƯỚNG DẪN ĐỖ XE NGÀY CHẴN / NGÀY LẺ (TỰ ĐỘNG HIỂN THỊ KHI ĐI CHẬM HOẶC DỪNG ĐỖ) -->
+    <div id="parking-advisor-card" class="parking-card-box hidden" onclick="closeParkingAdvisor()">
+      <div class="parking-header">
+        <span class="parking-tag" id="advisor-today-tag">📅 HÔM NAY: NGÀY 9 (NGÀY LẺ)</span>
+        <span class="parking-close">✕</span>
+      </div>
+      <div class="parking-rules-grid">
+        <div class="rule-col forbidden" id="rule-col-odd">
+          <div class="sign-circle p131b">
+            <span class="sign-bar-single">|</span>
+          </div>
+          <div class="rule-title">BIỂN P.131b (1 VẠCH)</div>
+          <div class="rule-status" id="status-odd-sign">🚫 CẤM ĐỖ HÔM NAY</div>
+        </div>
+        <div class="rule-col allowed" id="rule-col-even">
+          <div class="sign-circle p131c">
+            <span class="sign-bar-double">||</span>
+          </div>
+          <div class="rule-title">BIỂN P.131c (2 VẠCH)</div>
+          <div class="rule-status" id="status-even-sign">✅ ĐƯỢC ĐỖ HÔM NAY</div>
+        </div>
+      </div>
+      <div class="parking-note" id="advisor-time-note">
+        ⏰ Quy chuẩn QCVN 41:2019: Ngày lẻ tính từ 00h00 đến 24h00 của ngày lẻ trong tháng.
       </div>
     </div>
 
     <!-- BẢNG ĐIỀU KHIỂN & ĐỒNG HỒ DƯỚI CÙNG (BOTTOM HUD) -->
     <div id="bottom-hud">
-      <!-- NÚT THỬ NGHIỆM TÌNH HUỐNG NHANH TRONG CHẾ ĐỘ DEMO -->
+      <!-- NÚT THỬ NGHIỆM TÌNH HUỐNG TRONG CHẾ ĐỘ DEMO -->
       <div id="demo-quick-bar" style="display:none;">
-        <button class="demo-btn" onclick="triggerSpeedingTest()">⚡ Thử Quá Tốc Độ</button>
-        <button class="demo-btn danger" onclick="triggerForbiddenTest()">⛔ Thử Biển Đường Cấm</button>
-        <button class="demo-btn warn" onclick="triggerBrakeTest()">🛑 Thử Phanh Gấp</button>
+        <button class="demo-btn" onclick="triggerSpeedingTest()">⚡ Quá Tốc Độ</button>
+        <button class="demo-btn danger" onclick="triggerForbiddenTest()">⛔ Biển Đường Cấm</button>
+        <button class="demo-btn danger" onclick="triggerForbiddenCarTest()">🚫 Cấm Ô Tô (P.103a)</button>
+        <button class="demo-btn warn" onclick="triggerPeakHourTest()">⏰ Cấm Giờ Cao Điểm</button>
+        <button class="demo-btn" onclick="triggerParkingAdvisorTest()">🅿️ Đỗ Chẵn/Lẻ</button>
       </div>
 
       <!-- THANH ĐO KHOẢNG CÁCH TRỰC QUAN -->
@@ -106,7 +136,7 @@
       <!-- CÁC THẺ METRICS TELEMETRY TỰ ĐỘNG -->
       <div class="metrics-row">
         <div class="metric-card">
-          <div class="metric-label">VẬN TỐC GPS THỰC TẾ</div>
+          <div class="metric-label">VẬN TỐC GPS</div>
           <div class="metric-value" id="val-speed">80<span class="metric-unit">km/h</span></div>
           <div class="metric-sub" id="speed-status-sub" style="font-size:10px; color:#38bdf8;">Tự động quét giới hạn</div>
         </div>
@@ -125,12 +155,12 @@
       </div>
     </div>
 
-    <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS (1 CHẠM DUY NHẤT) -->
+    <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS -->
     <div id="start-overlay">
       <div style="font-size: 46px; margin-bottom: 10px;">🛡️🚗</div>
       <h2 style="font-size: 22px; font-weight: 800; color: #38bdf8; margin-bottom: 6px;">ADAS SafeDistance Pro</h2>
       <p style="font-size: 13px; color: #94a3b8; max-width: 330px; margin-bottom: 4px;">
-        Hệ Thống Tự Động 100% Khi Lái Xe — Không Cần Thao Tác Tay
+        Tự Động Nhận Diện: Khoảng Cách • Tốc Độ • Đường Cấm • Cấm Giờ • Đỗ Chẵn Lẻ
       </p>
 
       <button class="start-btn" onclick="startAdasSystem(false)">
@@ -142,12 +172,12 @@
       </button>
 
       <div class="notice-box">
-        <strong>📋 Hoàn Toàn Rảnh Tay (Hands-Free 100%):</strong><br>
-        1. <strong>Tự động đọc tốc độ xe</strong> từ chip GPS vệ tinh điện thoại theo thời gian thực.<br>
-        2. <strong>Tự động nhận diện biển báo tốc độ</strong> (Camera đọc biển P.127 & bản đồ GPS) theo <strong>Thông tư 38/2024/TT-BGTVT</strong> (thay thế TT 31/2019).<br>
-        3. <strong>Tự động phát hiện biển đường cấm</strong> & cấm đi ngược chiều (Biển P.102 / P.101).<br>
-        4. <strong>Tự động cảnh báo quá tốc độ</strong> (Căn cứ <strong>Nghị định 168/2024/NĐ-CP</strong> quy định trừ điểm GPLX).<br>
-        5. <strong>Tự động đo khoảng cách an toàn</strong> và phát còi bíp + giọng nói tiếng Việt qua loa xe.
+        <strong>📋 Tính Năng Tự Động Hoàn Toàn (QCVN 41:2019 & TT 38/2024):</strong><br>
+        1. <strong>Đường cấm theo loại xe</strong>: Nhận diện Biển P.103a (Cấm ô tô), P.106 (Cấm tải), P.102 (Cấm ngược chiều).<br>
+        2. <strong>Cấm xe theo giờ</strong>: Tự động đối chiếu đồng hồ với khung giờ cao điểm cấm xe (06:00-09:00, 16:00-19:30).<br>
+        3. <strong>Đậu xe ngày Chẵn / Lẻ</strong>: Tự động lấy lịch hôm nay, báo ngay bên nào được đỗ (Biển P.131b / P.131c).<br>
+        4. <strong>Quá tốc độ</strong>: So sánh GPS xe với giới hạn cho phép (Nghị định 168/2024/NĐ-CP trừ điểm GPLX).<br>
+        5. <strong>Cự ly an toàn</strong>: Báo động bám đuôi gần, xe trước phanh gấp qua giọng nói tiếng Việt.
       </div>
     </div>
   </div>

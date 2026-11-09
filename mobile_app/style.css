@@ -86,14 +86,14 @@ html, body {
 /* TOP STATUS BAR */
 #top-hud {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
+  top: 6px;
+  left: 6px;
+  right: 6px;
   z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: nowrap;
   pointer-events: auto;
 }
@@ -104,7 +104,7 @@ html, body {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   font-size: 11px;
   font-weight: 600;
   display: flex;
@@ -114,12 +114,24 @@ html, body {
   cursor: pointer;
 }
 
+#parking-day-badge {
+  background: rgba(5, 150, 105, 0.85);
+  border: 1px solid #34d399;
+  color: #ffffff;
+}
+
+#btn-vehicle-type {
+  background: rgba(79, 70, 229, 0.85);
+  border: 1px solid #818cf8;
+  color: #e0e7ff;
+}
+
 /* ========================================================
-   BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127 CHUẨN QCVN 41:2019/BGTVT)
+   BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127 CHUẨN QCVN 41:2019)
    ======================================================== */
 .speed-sign-badge {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: #ffffff;
   border: 5px solid #dc2626;
@@ -153,7 +165,6 @@ html, body {
   font-family: -apple-system, sans-serif;
 }
 
-/* Hiệu ứng nhấp nháy khi xe chạy quá tốc độ */
 .speed-sign-badge.overspeed {
   animation: pulse-speeding 0.4s infinite alternate;
   box-shadow: 0 0 16px #ef4444;
@@ -187,7 +198,7 @@ html, body {
    ======================================================== */
 #alert-banner {
   position: absolute;
-  top: 56px;
+  top: 52px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -235,11 +246,11 @@ html, body {
 }
 
 /* ========================================================
-   HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102)
+   HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102, P.103a, CẤM GIỜ)
    ======================================================== */
 .forbidden-alert-box {
   position: absolute;
-  top: 115px;
+  top: 108px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -288,6 +299,132 @@ html, body {
 }
 
 /* ========================================================
+   BẢNG TRỢ LÝ ĐỖ XE NGÀY CHẴN / LẺ (BIỂN P.131b & P.131c)
+   ======================================================== */
+.parking-card-box {
+  position: absolute;
+  top: 105px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  width: 92%;
+  max-width: 430px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid #3b82f6;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  transition: all 0.25s ease;
+}
+
+.parking-card-box.hidden {
+  display: none !important;
+}
+
+.parking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.parking-tag {
+  font-size: 12px;
+  font-weight: 800;
+  color: #38bdf8;
+}
+
+.parking-close {
+  cursor: pointer;
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 2px 6px;
+}
+
+.parking-rules-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.rule-col {
+  border-radius: 10px;
+  padding: 8px 4px;
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.rule-col.forbidden {
+  border-color: #ef4444;
+  background: rgba(69, 10, 10, 0.75);
+}
+
+.rule-col.allowed {
+  border-color: #10b981;
+  background: rgba(6, 78, 59, 0.75);
+}
+
+.sign-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  margin: 0 auto 5px;
+  background: #2563eb;
+  border: 5px solid #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.sign-circle::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 40px;
+  background: #dc2626;
+  transform: rotate(45deg);
+}
+
+.sign-bar-single, .sign-bar-double {
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 17px;
+  z-index: 1;
+  font-family: monospace;
+}
+
+.rule-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 3px;
+}
+
+.rule-status {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.rule-col.forbidden .rule-status {
+  color: #f87171;
+}
+
+.rule-col.allowed .rule-status {
+  color: #4ade80;
+}
+
+.parking-note {
+  font-size: 9px;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* ========================================================
    BOTTOM HUD & METRICS
    ======================================================== */
 #bottom-hud {
@@ -298,24 +435,24 @@ html, body {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   pointer-events: auto;
 }
 
-/* Nút thử nghiệm nhanh trong chế độ Demo */
 #demo-quick-bar {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .demo-btn {
   background: rgba(30, 41, 59, 0.9);
   color: #93c5fd;
   border: 1px solid #3b82f6;
-  border-radius: 16px;
-  padding: 4px 10px;
-  font-size: 11px;
+  border-radius: 14px;
+  padding: 3px 8px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -457,113 +594,6 @@ html, body {
 }
 
 /* ========================================================
-   MODAL CHỌN TỐC ĐỘ GIỚI HẠN
-   ======================================================== */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.modal-box {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 420px;
-  padding: 18px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
-}
-
-.modal-header h3 {
-  font-size: 16px;
-  font-weight: 800;
-  color: #38bdf8;
-  margin-bottom: 4px;
-}
-
-.modal-header p {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 14px;
-}
-
-.speed-btn-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.btn-speed-pick {
-  background: #1e293b;
-  border: 1px solid #475569;
-  border-radius: 10px;
-  padding: 10px;
-  text-align: center;
-  cursor: pointer;
-  color: #f1f5f9;
-  transition: all 0.15s ease;
-}
-
-.btn-speed-pick:active, .btn-speed-pick.active {
-  background: #2563eb;
-  border-color: #60a5fa;
-}
-
-.speed-num {
-  font-size: 24px;
-  font-weight: 900;
-  display: block;
-  color: #ffffff;
-}
-
-.speed-desc {
-  font-size: 10px;
-  color: #cbd5e1;
-  display: block;
-  margin-top: 2px;
-}
-
-.modal-footer {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-custom-speed {
-  flex: 1;
-  background: #334155;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px;
-  font-weight: 600;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-close-modal {
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-/* ========================================================
    MÀN HÌNH BẮT ĐẦU
    ======================================================== */
 #start-overlay {
@@ -616,37 +646,41 @@ html, body {
 }
 
 /* ========================================================
-   TỐI ƯU HÓA LANDSCAPE (XOAY NGANG TAPLO Ô TÔ)
+   TỐI ƯU HÓA LANDSCAPE
    ======================================================== */
 @media (orientation: landscape), (max-height: 520px) {
   #top-hud {
-    top: 5px;
-    padding: 0 8px;
+    top: 4px;
+    padding: 0 6px;
   }
   .hud-pill {
-    padding: 3px 7px;
+    padding: 2px 6px;
     font-size: 10px;
   }
   .speed-sign-badge {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border-width: 4px;
   }
   #limit-number {
-    font-size: 14px;
+    font-size: 13px;
   }
   #alert-banner {
-    top: 5px;
+    top: 4px;
     padding: 4px 10px;
     font-size: 12px;
     max-width: 360px;
   }
   .forbidden-alert-box {
-    top: 48px;
-    padding: 6px 12px;
+    top: 44px;
+    padding: 5px 10px;
+  }
+  .parking-card-box {
+    top: 44px;
+    padding: 8px 10px;
   }
   #bottom-hud {
-    bottom: 5px;
+    bottom: 4px;
     max-width: 680px;
     margin: 0 auto;
     left: 14px;

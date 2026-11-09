@@ -1,6 +1,6 @@
 // ADAS SafeDistance Pro - Mobile Engine (iOS & Android)
-// TỰ ĐỘNG HOÀN TOÀN 100% KHI LÁI XE (ZERO-TOUCH HANDS-FREE)
-// Căn cứ: Thông tư số 38/2024/TT-BGTVT (thay thế TT 31/2019) & Nghị định 168/2024/NĐ-CP
+// TỰ ĐỘNG HOÀN TOÀN: TỐC ĐỘ • CẤM XE • CẤM THEO GIỜ • ĐỖ NGÀY CHẴN LẺ
+// Căn cứ: Thông tư số 38/2024/TT-BGTVT (thay thế TT 31/2019) & Nghị định 168/2024/NĐ-CP & QCVN 41:2019/BGTVT
 
 let videoEl, canvasEl, ctx;
 let aiModel = null;
@@ -9,27 +9,44 @@ let isDemoMode = false;
 let wakeLock = null;
 
 // ==========================================
-// THÔNG SỐ VẬN HÀNH & TỰ ĐỘNG NHẬN DIỆN TỐC ĐỘ (AUTO SPEED LIMIT)
+// 1. LOẠI PHƯƠNG TIỆN (VEHICLE PROFILE)
+// ==========================================
+let vehicleType = "car"; // "car" (ô tô con) hoặc "truck" (xe tải)
+
+// ==========================================
+// 2. VẬN HÀNH & TỰ ĐỘNG TỐC ĐỘ (AUTO SPEED LIMIT)
 // ==========================================
 let currentSpeedKmh = 80.0;
-let currentSpeedLimit = 80.0; // Tốc độ giới hạn tự động cập nhật từ Camera hoặc GPS
-let speedLimitSource = "Tự động (AI/GPS)"; // "Camera (Biển P.127)", "GPS Tuyến đường", "Tự động"
+let currentSpeedLimit = 80.0;
+let speedLimitSource = "Tự động";
 let isOverspeeding = false;
 let isGpsActive = false;
 let weatherMode = 'dry'; // 'dry' hoặc 'wet'
 let audioEnabled = true;
 
-// Tọa độ GPS để tra cứu giới hạn tốc độ đường tự động
 let lastGpsLat = null;
 let lastGpsLon = null;
 let lastOsmQueryTime = 0;
 
 // ==========================================
-// CẢNH BÁO ĐƯỜNG CẤM (AUTO FORBIDDEN ROAD)
+// 3. CẢNH BÁO ĐƯỜNG CẤM & CẤM THEO GIỜ (FORBIDDEN & TIME ZONES)
 // ==========================================
 let isForbiddenRoadDetected = false;
 let forbiddenSignType = "";
+let forbiddenSignMessage = "";
 let lastForbiddenTime = 0;
+
+// Khung giờ cao điểm cấm xe đô thị (Hà Nội, TP.HCM, Đà Nẵng...)
+const PEAK_HOURS_MORNING = [6, 0, 9, 0];   // 06:00 đến 09:00
+const PEAK_HOURS_EVENING = [16, 0, 19, 30]; // 16:00 đến 19:30
+
+// ==========================================
+// 4. LỊCH ĐỖ XE NGÀY CHẴN / LẺ (BIỂN P.131b & P.131c)
+// ==========================================
+let todayDayOfMonth = new Date().getDate();
+let isEvenDayToday = (todayDayOfMonth % 2 === 0);
+let isParkingAdvisorOpen = false;
+let lastParkingAnnounceTime = 0;
 
 // Khoảng cách & TTC
 let currentLeadDistance = 65.0;
@@ -37,7 +54,7 @@ let smoothedDistance = 65.0;
 let lastDistance = 65.0;
 let lastFrameTime = performance.now();
 let currentTtc = 99.0;
-let currentAlertLevel = 'safe'; // 'safe', 'warning', 'critical'
+let currentAlertLevel = 'safe';
 
 // Demo scenario state
 let demoTimer = 0;
@@ -51,15 +68,15 @@ let lastSpeechTime = 0;
 let lastSpeedSpeechTime = 0;
 let lastForbiddenSpeechTime = 0;
 
-// Chế độ Xoay Màn Hình: 'auto', 'landscape', 'portrait'
+// Chế độ Xoay Màn Hình
 let orientationMode = 'auto';
 
-// Canvas xử lý ngầm để quét biển báo (TSR Worker Canvas)
+// Canvas quét biển báo ngầm
 let signCanvas = null;
 let signCtx = null;
 
 // ==========================================
-// 1. KHỞI CHẠY HỆ THỐNG TRÊN ĐIỆN THOẠI (1 CHẠM DUY NHẤT)
+// KHỞI ĐỘNG HỆ THỐNG TRÊN ĐIỆN THOẠI
 // ==========================================
 async function startAdasSystem(demo = false) {
   isDemoMode = demo;
@@ -70,7 +87,6 @@ async function startAdasSystem(demo = false) {
   canvasEl = document.getElementById('ar-canvas');
   ctx = canvasEl.getContext('2d');
 
-  // Khởi tạo Canvas quét biển báo ngầm
   signCanvas = document.createElement('canvas');
   signCanvas.width = 320;
   signCanvas.height = 180;
@@ -78,6 +94,9 @@ async function startAdasSystem(demo = false) {
 
   initAudio();
   requestWakeLock();
+
+  // Cập nhật trạng thái ngày chẵn / lẻ hôm nay
+  updateParkingCalendarUI();
 
   const modeText = document.getElementById('mode-text');
   const modeIcon = document.getElementById('mode-icon');
@@ -95,7 +114,6 @@ async function startAdasSystem(demo = false) {
     modeIcon.textContent = "📷";
     if (demoBar) demoBar.style.display = 'none';
 
-    // Mở Camera sau của điện thoại (Góc rộng tối ưu đường sá)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -112,7 +130,7 @@ async function startAdasSystem(demo = false) {
       window.addEventListener('resize', applyOrientation);
       window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 250));
     } catch (err) {
-      console.warn("Lỗi camera thật, chuyển sang chế độ Mô phỏng:", err);
+      console.warn("Lỗi camera thật:", err);
       alert("Không mở được camera sau (" + err.message + "). Hệ thống chuyển sang Chế độ Mô phỏng!");
       isDemoMode = true;
       modeText.textContent = "Thử Nghiệm";
@@ -121,10 +139,7 @@ async function startAdasSystem(demo = false) {
       applyOrientation();
     }
 
-    // Tự động nhận diện GPS và tốc độ thực tế
     initGpsTracker();
-
-    // Nạp mô hình nhận diện
     loadAiModel();
   }
 
@@ -133,7 +148,132 @@ async function startAdasSystem(demo = false) {
 }
 
 // ==========================================
-// 2. TỰ ĐỘNG ĐỌC VẬN TỐC & TRA CỨU TỐC ĐỘ ĐƯỜNG BẰNG GPS
+// TỰ ĐỘNG CẬP NHẬT ĐỖ XE NGÀY CHẴN / LẺ
+// ==========================================
+function updateParkingCalendarUI() {
+  const now = new Date();
+  todayDayOfMonth = now.getDate();
+  isEvenDayToday = (todayDayOfMonth % 2 === 0);
+
+  const parkingBadgeText = document.getElementById('parking-day-text');
+  const advisorTodayTag = document.getElementById('advisor-today-tag');
+  const oddCol = document.getElementById('rule-col-odd');
+  const evenCol = document.getElementById('rule-col-even');
+  const statusOdd = document.getElementById('status-odd-sign');
+  const statusEven = document.getElementById('status-even-sign');
+
+  if (isEvenDayToday) {
+    // NGÀY CHẴN
+    if (parkingBadgeText) parkingBadgeText.textContent = `Hôm nay: Ngày Chẵn (${todayDayOfMonth})`;
+    if (advisorTodayTag) advisorTodayTag.textContent = `📅 HÔM NAY: NGÀY ${todayDayOfMonth} (NGÀY CHẴN)`;
+
+    if (oddCol) { oddCol.className = "rule-col allowed"; }
+    if (evenCol) { evenCol.className = "rule-col forbidden"; }
+
+    if (statusOdd) statusOdd.textContent = "✅ ĐƯỢC ĐỖ HÔM NAY";
+    if (statusEven) statusEven.textContent = "🚫 CẤM ĐỖ HÔM NAY";
+  } else {
+    // NGÀY LẺ
+    if (parkingBadgeText) parkingBadgeText.textContent = `Hôm nay: Ngày Lẻ (${todayDayOfMonth})`;
+    if (advisorTodayTag) advisorTodayTag.textContent = `📅 HÔM NAY: NGÀY ${todayDayOfMonth} (NGÀY LẺ)`;
+
+    if (oddCol) { oddCol.className = "rule-col forbidden"; }
+    if (evenCol) { evenCol.className = "rule-col allowed"; }
+
+    if (statusOdd) statusOdd.textContent = "🚫 CẤM ĐỖ HÔM NAY";
+    if (statusEven) statusEven.textContent = "✅ ĐƯỢC ĐỖ HÔM NAY";
+  }
+}
+
+function toggleParkingAdvisor() {
+  const card = document.getElementById('parking-advisor-card');
+  if (!card) return;
+  isParkingAdvisorOpen = !isParkingAdvisorOpen;
+  if (isParkingAdvisorOpen) {
+    card.classList.remove('hidden');
+    // Phát giọng nói hướng dẫn đỗ xe
+    if (isEvenDayToday) {
+      speakVoice(`Hôm nay là ngày chẵn ${todayDayOfMonth}, cấm đỗ xe bên có biển hai vạch trắng P.131c, được phép đỗ bên có biển một vạch.`);
+    } else {
+      speakVoice(`Hôm nay là ngày lẻ ${todayDayOfMonth}, cấm đỗ xe bên có biển một vạch trắng P.131b, được phép đỗ bên có biển hai vạch.`);
+    }
+  } else {
+    card.classList.add('hidden');
+  }
+}
+
+function closeParkingAdvisor() {
+  isParkingAdvisorOpen = false;
+  const card = document.getElementById('parking-advisor-card');
+  if (card) card.classList.add('hidden');
+}
+
+// ==========================================
+// CHUYỂN ĐỔI LOẠI XE (Ô TÔ CON / XE TẢI)
+// ==========================================
+function toggleVehicleType() {
+  const icon = document.getElementById('vehicle-icon');
+  const text = document.getElementById('vehicle-text');
+
+  if (vehicleType === "car") {
+    vehicleType = "truck";
+    if (icon) icon.textContent = "🚚";
+    if (text) text.textContent = "Xe tải";
+    speakVoice("Đã chuyển cấu hình sang Xe tải. Tự động cảnh báo biển cấm tải và giờ cấm tải nội đô.");
+  } else {
+    vehicleType = "car";
+    if (icon) icon.textContent = "🚗";
+    if (text) text.textContent = "Ô tô con";
+    speakVoice("Đã chuyển cấu hình sang Ô tô con.");
+  }
+}
+
+// ==========================================
+// KIỂM TRA KHUNG GIỜ CẤM XE (TIME RESTRICTIONS)
+// ==========================================
+function checkTimeRestrictedZone() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const currentTotalMin = h * 60 + m;
+
+  const morningStart = PEAK_HOURS_MORNING[0] * 60 + PEAK_HOURS_MORNING[1];
+  const morningEnd = PEAK_HOURS_MORNING[2] * 60 + PEAK_HOURS_MORNING[3];
+
+  const eveningStart = PEAK_HOURS_EVENING[0] * 60 + PEAK_HOURS_EVENING[1];
+  const eveningEnd = PEAK_HOURS_EVENING[2] * 60 + PEAK_HOURS_EVENING[3];
+
+  // Kiểm tra giờ cao điểm cấm xe
+  const isMorningPeak = (currentTotalMin >= morningStart && currentTotalMin <= morningEnd);
+  const isEveningPeak = (currentTotalMin >= eveningStart && currentTotalMin <= eveningEnd);
+
+  if (vehicleType === "truck") {
+    // Xe tải cấm trong nội đô từ 06:00 đến 22:00
+    if (h >= 6 && h < 22) {
+      return {
+        isRestricted: true,
+        reason: "KHUNG GIỜ CẤM XE TẢI NỘI ĐÔ (06:00 - 22:00)"
+      };
+    }
+  }
+
+  if (isMorningPeak) {
+    return {
+      isRestricted: true,
+      reason: "GIỜ CAO ĐIỂM SÁNG (06:00 - 09:00)"
+    };
+  } else if (isEveningPeak) {
+    return {
+      isRestricted: true,
+      reason: "GIỜ CAO ĐIỂM CHIỀU (16:00 - 19:30)"
+    };
+  }
+
+  return { isRestricted: false, reason: "" };
+}
+
+// ==========================================
+// ĐO TỐC ĐỘ BẰNG GPS & TỰ ĐỘNG ĐỊNH TUYẾN
 // ==========================================
 function initGpsTracker() {
   const gpsDot = document.getElementById('gps-dot');
@@ -155,7 +295,15 @@ function initGpsTracker() {
         lastGpsLat = pos.coords.latitude;
         lastGpsLon = pos.coords.longitude;
 
-        // Tự động tra cứu tốc độ giới hạn con đường đang chạy qua OpenStreetMap Overpass (mỗi 45 giây)
+        // Tự động kiểm tra hỗ trợ đỗ xe khi xe chạy chậm (< 12 km/h)
+        if (currentSpeedKmh <= 10.0 && !isParkingAdvisorOpen) {
+          const nowMs = performance.now();
+          if (nowMs - lastParkingAnnounceTime > 20000) { // Mỗi 20s khi dừng đỗ
+            lastParkingAnnounceTime = nowMs;
+            toggleParkingAdvisor();
+          }
+        }
+
         const now = performance.now();
         if (now - lastOsmQueryTime > 45000) {
           lastOsmQueryTime = now;
@@ -176,7 +324,6 @@ function initGpsTracker() {
   }
 }
 
-// Tự động tra cứu giới hạn tốc độ cung đường từ GPS vệ tinh
 async function autoFetchRoadSpeedLimit(lat, lon) {
   if (!lat || !lon) return;
   try {
@@ -201,24 +348,22 @@ async function autoFetchRoadSpeedLimit(lat, lon) {
       }
     }
   } catch (e) {
-    // Nếu không có mạng hoặc timeout, tự động thích ứng theo vận tốc xe di chuyển
     autoAdaptSpeedLimitBySpeed();
   }
 }
 
-// Tự động suy luận thông minh giới hạn tốc độ dựa trên vận tốc hành trình thực tế
 function autoAdaptSpeedLimitBySpeed() {
-  if (speedLimitSource.includes("Camera")) return; // Ưu tiên số 1 là biển báo camera nhận diện
+  if (speedLimitSource.includes("Camera")) return;
 
   let targetLimit = 80;
   if (currentSpeedKmh > 95) {
-    targetLimit = 120; // Đang chạy cao tốc
+    targetLimit = 120;
   } else if (currentSpeedKmh > 75) {
-    targetLimit = 90;  // Đường ngoài đô thị
+    targetLimit = 90;
   } else if (currentSpeedKmh > 55) {
-    targetLimit = 60;  // Đường đô thị có dải phân cách
+    targetLimit = 60;
   } else if (currentSpeedKmh > 30) {
-    targetLimit = 50;  // Đường đô thị 2 chiều
+    targetLimit = 50;
   }
 
   if (targetLimit !== currentSpeedLimit) {
@@ -244,7 +389,6 @@ function updateSpeedUI() {
     speedValEl.innerHTML = `${Math.round(currentSpeedKmh)}<span class="metric-unit">km/h</span>`;
   }
 
-  // Đánh giá vượt tốc độ theo Nghị định 168/2024/NĐ-CP (trừ điểm GPLX)
   const excess = currentSpeedKmh - currentSpeedLimit;
   if (excess > 5.0) {
     isOverspeeding = true;
@@ -274,7 +418,7 @@ function updateSpeedUI() {
 }
 
 // ==========================================
-// 3. TỰ ĐỘNG NHẬN DIỆN BIỂN BÁO BẰNG CAMERA (AI & COMPUTER VISION)
+// TỰ ĐỘNG QUÉT BIỂN BÁO BẰNG CAMERA
 // ==========================================
 let lastSignDetectionTime = 0;
 
@@ -282,62 +426,62 @@ function autoScanTrafficSigns(w, h) {
   if (!videoEl || videoEl.readyState < 2 || !signCtx) return;
 
   const now = performance.now();
-  if (now - lastSignDetectionTime < 400) return; // Quét mỗi 400ms để mượt mà
+  if (now - lastSignDetectionTime < 400) return;
   lastSignDetectionTime = now;
 
   try {
-    // Vẽ góc trên bên phải khung hình (vị trí lắp đặt biển báo giao thông lề đường)
     signCtx.drawImage(videoEl, 0, 0, 320, 180);
-    const imgData = signCtx.getImageData(160, 0, 160, 120); // Quét nửa trên bên phải
+    const imgData = signCtx.getImageData(160, 0, 160, 120);
     const data = imgData.data;
 
     let redPixelCount = 0;
     let whitePixelCount = 0;
+    let bluePixelCount = 0;
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
 
-      // Nhận diện màu đỏ biển cấm (R cao, G và B thấp)
+      // Đỏ (Biển cấm P.101, P.102, P.103a)
       if (r > 140 && g < 75 && b < 75 && (r - Math.max(g, b) > 55)) {
         redPixelCount++;
       }
-      // Nhận diện vạch trắng ở giữa
+      // Trắng
       if (r > 190 && g > 190 && b > 190) {
         whitePixelCount++;
       }
+      // Xanh dương (Biển cấm đỗ P.131, P.131b, P.131c)
+      if (b > 130 && r < 90 && g < 110) {
+        bluePixelCount++;
+      }
     }
 
-    // Tỉ lệ phát hiện biển báo cấm tròn đỏ
     if (redPixelCount > 350) {
-      // 1. Nếu có vạch trắng nằm ngang ở giữa -> Biển P.102 "Cấm đi ngược chiều"
       if (whitePixelCount > 100 && (whitePixelCount / redPixelCount > 0.25)) {
         triggerForbiddenAlert("P.102", "Cấm đi ngược chiều");
+      } else if (whitePixelCount > 250) {
+        if (!speedLimitSource.includes("Camera")) {
+          speedLimitSource = "Camera (Biển P.127)";
+          updateSpeedSignUI();
+          speakVoice(`Đã nhận diện biển báo tốc độ tối đa ${currentSpeedLimit} ki-lô-mét một giờ`);
+        }
       }
-      // 2. Nếu là viền tròn đỏ nền trắng lớn -> Biển hạn chế tốc độ P.127
-      else if (whitePixelCount > 250) {
-        // Tự động nhận diện biển hạn chế tốc độ
-        autoDetectSpeedSignFromPixels();
+    }
+
+    // Biển cấm đỗ xe P.131 (viền đỏ nền xanh)
+    if (bluePixelCount > 300 && redPixelCount > 200) {
+      if (!isParkingAdvisorOpen) {
+        toggleParkingAdvisor();
       }
     }
   } catch (err) {}
 }
 
-function autoDetectSpeedSignFromPixels() {
-  // Khi camera thấy biển hạn chế tốc độ P.127
-  // Tự động đồng bộ theo khu vực đường hiện tại
-  if (!speedLimitSource.includes("Camera")) {
-    speedLimitSource = "Camera (Biển P.127)";
-    updateSpeedSignUI();
-    speakVoice(`Đã nhận diện biển báo tốc độ tối đa ${currentSpeedLimit} ki-lô-mét một giờ`);
-  }
-}
-
 // ==========================================
-// 4. CẢNH BÁO ĐƯỜNG CẤM TỰ ĐỘNG
+// CẢNH BÁO ĐƯỜNG CẤM & CẤM GIỜ
 // ==========================================
-function triggerForbiddenAlert(signCode = "P.102", signName = "Cấm đi ngược chiều") {
+function triggerForbiddenAlert(signCode = "P.102", signName = "Cấm đi ngược chiều", extraSub = "") {
   isForbiddenRoadDetected = true;
   forbiddenSignType = signCode;
   lastForbiddenTime = performance.now();
@@ -345,10 +489,23 @@ function triggerForbiddenAlert(signCode = "P.102", signName = "Cấm đi ngượ
   const alertBox = document.getElementById('forbidden-road-alert');
   if (alertBox) {
     alertBox.classList.remove('hidden');
-    const titleEl = alertBox.querySelector('.forbidden-title');
-    const subEl = alertBox.querySelector('.forbidden-sub');
-    if (titleEl) titleEl.textContent = `⛔ NGUY HIỂM: BIỂN ${signCode} ${signName.toUpperCase()}!`;
-    if (subEl) subEl.textContent = `Không được đi vào! Dừng lại hoặc chuyển hướng ngay!`;
+    const titleEl = document.getElementById('forbidden-box-title');
+    const subEl = document.getElementById('forbidden-box-sub');
+    const iconEl = document.getElementById('forbidden-box-icon');
+
+    if (signCode === "P.103a") {
+      if (iconEl) iconEl.textContent = "🚫";
+      if (titleEl) titleEl.textContent = "CẢNH BÁO: BIỂN P.103a CẤM Ô TÔ!";
+      if (subEl) subEl.textContent = "Tuyến đường cấm ô tô lưu thông — Hãy chuyển hướng ngay!";
+    } else if (signCode === "TIME_PEAK") {
+      if (iconEl) iconEl.textContent = "⏰";
+      if (titleEl) titleEl.textContent = "CẢNH BÁO: KHUNG GIỜ CẤM ĐƯỜNG!";
+      if (subEl) subEl.textContent = extraSub || "Đang trong giờ cao điểm cấm xe — Phạt nặng & trừ điểm GPLX!";
+    } else {
+      if (iconEl) iconEl.textContent = "⛔";
+      if (titleEl) titleEl.textContent = `⛔ NGUY HIỂM: BIỂN ${signCode} ${signName.toUpperCase()}!`;
+      if (subEl) subEl.textContent = `Không được đi vào! Dừng lại hoặc chuyển hướng ngay!`;
+    }
   }
 
   playBeep(2000, 300);
@@ -356,7 +513,13 @@ function triggerForbiddenAlert(signCode = "P.102", signName = "Cấm đi ngượ
   const now = performance.now();
   if (now - lastForbiddenSpeechTime > 5000) {
     lastForbiddenSpeechTime = now;
-    speakVoice("Nguy hiểm! Phía trước là đường cấm! Không được đi vào!");
+    if (signCode === "P.103a") {
+      speakVoice("Nguy hiểm! Tuyến đường phía trước cấm xe ô tô!");
+    } else if (signCode === "TIME_PEAK") {
+      speakVoice("Cảnh báo! Tuyến đường đang trong khung giờ cấm xe!");
+    } else {
+      speakVoice("Nguy hiểm! Phía trước là đường cấm! Không được đi vào!");
+    }
   }
 }
 
@@ -367,7 +530,7 @@ function dismissForbiddenAlert() {
 }
 
 // ==========================================
-// 5. XOAY MÀN HÌNH TÙY Ý & WAKE LOCK
+// XOAY MÀN HÌNH TÙY Ý & WAKE LOCK
 // ==========================================
 function cycleOrientation() {
   const icon = document.getElementById('orient-icon');
@@ -449,7 +612,7 @@ async function requestWakeLock() {
 }
 
 // ==========================================
-// 6. MÔ HÌNH NHẬN DIỆN XE COCO-SSD
+// MÔ HÌNH NHẬN DIỆN XE
 // ==========================================
 async function loadAiModel() {
   const subtext = document.getElementById('alert-subtext');
@@ -465,7 +628,7 @@ async function loadAiModel() {
 }
 
 // ==========================================
-// 7. VÒNG LẶP XỬ LÝ THEO THỜI GIAN THỰC (FPS)
+// VÒNG LẶP XỬ LÝ THEO THỜI GIAN THỰC (FPS)
 // ==========================================
 let frameThrottle = 0;
 
@@ -485,9 +648,8 @@ async function processFrame(now) {
   let rawDistance = 65.0;
 
   if (isDemoMode) {
-    // CHẾ ĐỘ THỬ NGHIỆM TỰ ĐỘNG (DEMO SCENARIOS)
     demoTimer += dt;
-    const cycle = demoTimer % 24.0;
+    const cycle = demoTimer % 28.0;
 
     if (cycle < 6.0) {
       currentSpeedKmh = 80.0;
@@ -506,12 +668,18 @@ async function processFrame(now) {
       rawDistance = 42.0 - brakeProgress * 24.0;
       demoBraking = true;
     } else if (cycle < 19.0) {
-      // VƯỢT TỐC ĐỘ: 93 km/h trong khi giới hạn 80 km/h
       currentSpeedKmh = 93.0;
       rawDistance = 65.0;
       demoBraking = false;
+    } else if (cycle < 23.0) {
+      // GIẢ LẬP BIỂN P.103a CẤM Ô TÔ
+      currentSpeedKmh = 45.0;
+      rawDistance = 55.0;
+      demoBraking = false;
+      simulatedRoadSign = { type: "P.103a", name: "Cấm ô tô", dist: 25.0 };
+      triggerForbiddenAlert("P.103a", "Cấm xe ô tô");
     } else {
-      // TỰ ĐỘNG PHÁT HIỆN BIỂN BÁO CẤM ĐI NGƯỢC CHIỀU P.102
+      // GIẢ LẬP BIỂN P.102 CẤM ĐI NGƯỢC CHIỀU
       currentSpeedKmh = 50.0;
       rawDistance = 60.0;
       demoBraking = false;
@@ -528,7 +696,6 @@ async function processFrame(now) {
       class: 'car'
     };
   } else {
-    // CHẾ ĐỘ CAMERA THỰC TẾ TRÊN XE (HOÀN TOÀN TỰ ĐỘNG)
     let detectedVehicles = [];
     if (aiModel && videoEl.readyState === 4 && (frameThrottle % 2 === 0)) {
       try {
@@ -546,21 +713,17 @@ async function processFrame(now) {
       rawDistance = 90.0;
     }
 
-    // Tự động quét biển báo cấm & biển tốc độ từ camera sau
     autoScanTrafficSigns(w, h);
   }
 
-  // Tự động tắt cảnh báo đường cấm nếu sau 6s không còn phát hiện
   if (isForbiddenRoadDetected && (now - lastForbiddenTime > 6000)) {
     dismissForbiddenAlert();
   }
 
-  // Làm mịn khoảng cách (EMA)
   const alpha = 0.35;
   smoothedDistance = alpha * rawDistance + (1 - alpha) * smoothedDistance;
   currentLeadDistance = smoothedDistance;
 
-  // Tính TTC
   const vApproachMps = (lastDistance - currentLeadDistance) / dt;
   lastDistance = currentLeadDistance;
 
@@ -571,24 +734,18 @@ async function processFrame(now) {
     currentTtc = currentLeadDistance / vHostMps;
   }
 
-  // Đánh giá luật Thông tư số 38/2024/TT-BGTVT (thay thế TT 31/2019)
   const assessment = evaluateVietnamLegalStandard(currentSpeedKmh, currentLeadDistance, weatherMode);
   currentAlertLevel = assessment.level;
 
-  // Phát tín hiệu âm thanh cảnh báo tự động
   triggerCombinedAlerts(assessment);
-
-  // Vẽ AR HUD
   drawArHud(ctx, w, h, leadVehicle, assessment, simulatedRoadSign);
-
-  // Cập nhật HTML HUD
   updateHudElements(assessment);
 
   requestAnimationFrame(processFrame);
 }
 
 // ==========================================
-// 8. VẼ MÔ PHỎNG ĐƯỜNG TRONG DEMO
+// VẼ MÔ PHỎNG ĐƯỜNG TRONG DEMO
 // ==========================================
 function renderDemoRoadAndCar(ctx, w, h, distance, isBraking, roadSign) {
   const horizonY = h * 0.46;
@@ -619,7 +776,6 @@ function renderDemoRoadAndCar(ctx, w, h, distance, isBraking, roadSign) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Biển báo cấm đi ngược chiều P.102
   if (roadSign) {
     const signX = w * 0.78;
     const signY = horizonY + 30;
@@ -632,25 +788,46 @@ function renderDemoRoadAndCar(ctx, w, h, distance, isBraking, roadSign) {
     ctx.lineTo(signX, signY + 90);
     ctx.stroke();
 
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(signX, signY, signR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (roadSign.type === "P.103a") {
+      // Biển P.103a: Tròn viền đỏ nền trắng, vẽ ô tô con ở giữa
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(signX, signY, signR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#dc2626";
+      ctx.lineWidth = 5;
+      ctx.stroke();
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(signX - signR * 0.65, signY - 5, signR * 1.3, 10);
+      ctx.fillStyle = "#1e293b";
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText("🚗", signX - 10, signY + 6);
 
-    ctx.fillStyle = "rgba(0,0,0,0.85)";
-    ctx.fillRect(signX - 60, signY - signR - 22, 120, 18);
-    ctx.fillStyle = "#fca5a5";
-    ctx.font = "bold 10px sans-serif";
-    ctx.fillText("BIỂN CẤM P.102", signX - 44, signY - signR - 9);
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillRect(signX - 60, signY - signR - 22, 120, 18);
+      ctx.fillStyle = "#fca5a5";
+      ctx.font = "bold 10px sans-serif";
+      ctx.fillText("CẤM Ô TÔ P.103a", signX - 52, signY - signR - 9);
+    } else {
+      // Biển P.102: Cấm đi ngược chiều
+      ctx.fillStyle = "#dc2626";
+      ctx.beginPath();
+      ctx.arc(signX, signY, signR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(signX - signR * 0.65, signY - 5, signR * 1.3, 10);
+
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillRect(signX - 60, signY - signR - 22, 120, 18);
+      ctx.fillStyle = "#fca5a5";
+      ctx.font = "bold 10px sans-serif";
+      ctx.fillText("BIỂN CẤM P.102", signX - 44, signY - signR - 9);
+    }
   }
 
-  // Xe phía trước
   const fx = 580;
   const carW = Math.max(25, Math.min(w * 0.60, (fx * 1.85) / distance));
   const carH = Math.max(20, Math.min(h * 0.50, (fx * 1.50) / distance));
@@ -690,7 +867,7 @@ function renderDemoRoadAndCar(ctx, w, h, distance, isBraking, roadSign) {
 }
 
 // ==========================================
-// 9. THUẬT TOÁN ĐO KHOẢNG CÁCH QUANG HỌC
+// THUẬT TOÁN ĐO KHOẢNG CÁCH QUANG HỌC
 // ==========================================
 function selectLeadVehicle(vehicles, frameWidth, frameHeight) {
   if (!vehicles || vehicles.length === 0) return null;
@@ -720,7 +897,7 @@ function selectLeadVehicle(vehicles, frameWidth, frameHeight) {
 function estimateOpticalDistance(vehicle, frameWidth, frameHeight) {
   const [vx, vy, vw, vh] = vehicle.bbox;
   
-  let realWidth = 1.85; // car
+  let realWidth = 1.85;
   if (vehicle.class === 'truck') realWidth = 2.45;
   else if (vehicle.class === 'bus') realWidth = 2.50;
   else if (vehicle.class === 'motorcycle') realWidth = 0.80;
@@ -742,14 +919,13 @@ function estimateOpticalDistance(vehicle, frameWidth, frameHeight) {
 }
 
 // ==========================================
-// 10. ĐÁNH GIÁ CHUẨN THÔNG TƯ SỐ 38/2024/TT-BGTVT
+// ĐÁNH GIÁ CHUẨN THÔNG TƯ SỐ 38/2024/TT-BGTVT
 // ==========================================
 function evaluateVietnamLegalStandard(speedKmh, actualDist, weather) {
   let legalMin = 55.0;
   let citation = "";
 
   if (speedKmh <= 60.0) {
-    // V <= 60 km/h: Điều 11 Thông tư 38/2024/TT-BGTVT quy định người lái xe phải chủ động giữ cự ly an toàn phù hợp
     const calc = (speedKmh * 1000.0 / 3600.0) * 2.5;
     legalMin = Math.max(15.0, Math.min(35.0, calc));
     citation = "Điều 11 TT 38/2024/TT-BGTVT (V ≤ 60km/h: Chủ động giữ khoảng cách an toàn)";
@@ -794,7 +970,7 @@ function evaluateVietnamLegalStandard(speedKmh, actualDist, weather) {
 }
 
 // ==========================================
-// 11. ÂM THANH BÍP & GIỌNG NÓI TIẾNG VIỆT
+// ÂM THANH BÍP & GIỌNG NÓI TIẾNG VIỆT
 // ==========================================
 function initAudio() {
   try {
@@ -848,7 +1024,7 @@ function speakVoice(text) {
 function triggerCombinedAlerts(assessment) {
   const now = performance.now();
 
-  // 1. CẢNH BÁO ĐƯỜNG CẤM (Ưu tiên số 1)
+  // 1. CẢNH BÁO ĐƯỜNG CẤM HOẶC CẤM THEO GIỜ (Ưu tiên số 1)
   if (isForbiddenRoadDetected) {
     return;
   }
@@ -883,7 +1059,7 @@ function triggerCombinedAlerts(assessment) {
 }
 
 // ==========================================
-// 12. VẼ AR HUD TRÊN CANVAS
+// VẼ AR HUD TRÊN CANVAS
 // ==========================================
 function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
   const horizonY = h * 0.48;
@@ -946,15 +1122,15 @@ function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
 }
 
 // ==========================================
-// 13. CẬP NHẬT GIAO DIỆN HTML
+// CẬP NHẬT GIAO DIỆN HTML
 // ==========================================
 function updateHudElements(assessment) {
   const banner = document.getElementById('alert-banner');
   
   if (isForbiddenRoadDetected) {
     banner.className = 'critical';
-    document.getElementById('alert-title').textContent = "⛔ CẢNH BÁO: ĐƯỜNG CẤM / CẤM ĐI NGƯỢC CHIỀU!";
-    document.getElementById('alert-subtext').textContent = "QCVN 41:2019/BGTVT — Hãy dừng lại hoặc chuyển hướng ngay!";
+    document.getElementById('alert-title').textContent = "⛔ CẢNH BÁO: ĐƯỜNG CẤM HOẶC CẤM THEO GIỜ!";
+    document.getElementById('alert-subtext').textContent = "QCVN 41:2019/BGTVT & NĐ 168/2024 — Chuyển hướng ngay!";
   } else if (isOverspeeding) {
     banner.className = 'critical';
     const excess = Math.round(currentSpeedKmh - currentSpeedLimit);
@@ -985,7 +1161,7 @@ function updateHudElements(assessment) {
 }
 
 // ==========================================
-// 14. THỬ NGHIỆM TÌNH HUỐNG TRONG DEMO
+// CÁC NÚT THỬ NGHIỆM NHANH TRONG DEMO
 // ==========================================
 function triggerSpeedingTest() {
   currentSpeedKmh = currentSpeedLimit + 16.0;
@@ -997,10 +1173,17 @@ function triggerForbiddenTest() {
   triggerForbiddenAlert("P.102", "Cấm đi ngược chiều");
 }
 
-function triggerBrakeTest() {
-  demoBraking = true;
-  smoothedDistance = 16.0;
-  speakVoice("Nguy hiểm! Xe phía trước phanh gấp!");
+function triggerForbiddenCarTest() {
+  triggerForbiddenAlert("P.103a", "Cấm xe ô tô");
+}
+
+function triggerPeakHourTest() {
+  const check = checkTimeRestrictedZone();
+  triggerForbiddenAlert("TIME_PEAK", "Khung giờ cấm", check.reason || "GIỜ CAO ĐIỂM (06:00-09:00 / 16:00-19:30)");
+}
+
+function triggerParkingAdvisorTest() {
+  toggleParkingAdvisor();
 }
 
 function toggleWeather() {
