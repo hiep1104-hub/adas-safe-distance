@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ADAS SafeDist">
+  <meta name="theme-color" content="#000000">
+  <title>ADAS SafeDistance Pro - Mobile HUD</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- TensorFlow.js & COCO-SSD for On-Device Mobile AI Object Detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- KHUNG HÌNH CAMERA & AR OVERLAY -->
+    <div id="viewport-wrapper">
+      <video id="camera-video" playsinline webkit-playsinline muted autoplay></video>
+      <canvas id="ar-canvas"></canvas>
+    </div>
+
+    <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) -->
+    <div id="top-hud">
+      <div class="hud-pill" id="gps-status" onclick="promptManualSpeed()">
+        <span id="gps-dot">🟢</span>
+        <span id="gps-text">GPS: Đang dò...</span>
+      </div>
+
+      <div class="hud-pill" id="btn-mode" onclick="toggleDemoMode()">
+        <span id="mode-icon">📷</span>
+        <span id="mode-text">Camera Thật</span>
+      </div>
+
+      <div class="hud-pill" id="btn-weather" onclick="toggleWeather()">
+        <span id="weather-icon">☀️</span>
+        <span id="weather-text">Khô ráo</span>
+      </div>
+
+      <div class="hud-pill" id="btn-audio" onclick="toggleAudio()">
+        <span id="audio-icon">🔊</span>
+      </div>
+    </div>
+
+    <!-- BANNER CẢNH BÁO TRUNG TÂM -->
+    <div id="alert-banner" class="safe">
+      <div id="alert-title">ĐANG QUAN SÁT LÀN ĐƯỜNG</div>
+      <div id="alert-subtext">Căn cứ Thông tư 31/2019/TT-BGTVT</div>
+    </div>
+
+    <!-- BẢNG ĐIỀU KHIỂN & ĐỒNG HỒ DƯỚI CÙNG (BOTTOM HUD) -->
+    <div id="bottom-hud">
+      <!-- THANH ĐO KHOẢNG CÁCH TRỰC QUAN -->
+      <div id="distance-bar-wrapper">
+        <div class="bar-labels">
+          <span>0m</span>
+          <span>NGUY HIỂM</span>
+          <span>CẢNH BÁO</span>
+          <span style="color:#4ade80;">AN TOÀN</span>
+          <span>120m</span>
+        </div>
+        <div id="bar-track">
+          <div id="bar-zone-critical" style="width: 25%;"></div>
+          <div id="bar-zone-warning" style="left: 25%; width: 25%;"></div>
+          <div id="bar-zone-safe" style="width: 50%;"></div>
+          <div id="bar-legal-marker" style="left: 50%;" title="Cự ly tối thiểu luật định"></div>
+          <div id="bar-car-pointer" style="left: 65%;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:2px;">
+          <span id="lbl-bar-legal" style="color:#facc15; font-weight:600;">Chuẩn: 55m</span>
+          <span id="lbl-bar-actual" style="color:#4ade80; font-weight:700;">Thực tế: -- m</span>
+        </div>
+      </div>
+
+      <!-- CÁC THẺ METRICS TELEMETRY -->
+      <div class="metrics-row">
+        <div class="metric-card" onclick="promptManualSpeed()">
+          <div class="metric-label">VẬN TỐC (CHẠM ĐỔI)</div>
+          <div class="metric-value" id="val-speed">80<span class="metric-unit">km/h</span></div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">CỰ LY XE TRƯỚC</div>
+          <div class="metric-value" id="val-distance">--<span class="metric-unit">m</span></div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">VA CHẠM (TTC)</div>
+          <div class="metric-value" id="val-ttc">--<span class="metric-unit">s</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS -->
+    <div id="start-overlay">
+      <div style="font-size: 46px; margin-bottom: 10px;">🚗💨</div>
+      <h2 style="font-size: 22px; font-weight: 800; color: #38bdf8; margin-bottom: 6px;">ADAS SafeDistance Pro</h2>
+      <p style="font-size: 13px; color: #94a3b8; max-width: 320px; margin-bottom: 4px;">
+        Đo Khoảng Cách & Cảnh Báo An Toàn Theo Thông Tư 31/2019/TT-BGTVT
+      </p>
+
+      <button class="start-btn" onclick="startAdasSystem(false)">
+        🚀 BẮT ĐẦU LÁI XE (CAMERA & GPS)
+      </button>
+
+      <button class="start-btn" onclick="startAdasSystem(true)" style="background: linear-gradient(135deg, #059669, #047857); margin-top: 10px; padding: 12px 28px; font-size: 15px;">
+        🎮 CHẾ ĐỘ THỬ NGHIỆM (DEMO TEST)
+      </button>
+
+      <div class="notice-box">
+        <strong>📋 Hướng Dẫn Sử Dụng Trực Tiếp Trên Xe:</strong><br>
+        1. Gắn điện thoại lên giá đỡ (kẹp kính chắn gió hoặc taplo xe).<br>
+        2. Camera sau hướng thẳng làn đường xe chạy.<br>
+        3. Tự động đọc tốc độ thực từ <strong>GPS vệ tinh</strong>.<br>
+        4. Tự động giữ màn hình luôn sáng, không bị tắt khi xe chạy.<br>
+        5. Phát tiếng bíp và giọng nói tiếng Việt qua loa điện thoại hoặc dàn loa ô tô (Bluetooth/CarPlay).
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+/* ADAS SafeDistance Pro - Mobile HUD Stylesheet */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  background-color: #000000;
+  color: #f0f4f8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+#app-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #050811;
+}
+
+/* KHUNG CAMERA VIEWPORT */
+#viewport-wrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#camera-video {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+#ar-canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* TOP STATUS BAR */
+#top-hud {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.hud-pill {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#btn-weather {
+  cursor: pointer;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid #3b82f6;
+  color: #93c5fd;
+}
+
+#btn-weather.wet {
+  background: rgba(29, 78, 216, 0.85);
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+#btn-audio {
+  cursor: pointer;
+}
+
+/* CẢNH BÁO TRUNG TÂM NỔI BẬT */
+#alert-banner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 90%;
+  max-width: 460px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  transition: all 0.25s ease;
+}
+
+#alert-banner.safe {
+  background: rgba(16, 185, 129, 0.90);
+  border: 2px solid #34d399;
+  color: #ffffff;
+}
+
+#alert-banner.warning {
+  background: rgba(245, 158, 11, 0.92);
+  border: 2px solid #fbbf24;
+  color: #000000;
+}
+
+#alert-banner.critical {
+  background: rgba(239, 68, 68, 0.95);
+  border: 2px solid #f87171;
+  color: #ffffff;
+  animation: pulse-danger 0.4s infinite alternate;
+}
+
+@keyframes pulse-danger {
+  0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 10px #ef4444; }
+  100% { transform: translateX(-50%) scale(1.04); box-shadow: 0 0 30px #ef4444; }
+}
+
+#alert-subtext {
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 3px;
+  opacity: 0.9;
+}
+
+/* ĐỒNG HỒ & THÔNG SỐ BOTTOM HUD */
+#bottom-hud {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: 8px;
+}
+
+.metric-card {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: "Courier New", monospace, sans-serif;
+}
+
+.metric-unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-left: 2px;
+}
+
+#val-speed { color: #38bdf8; }
+#val-distance { color: #4ade80; }
+#val-legal { color: #facc15; }
+#val-ttc { color: #f472b6; }
+
+/* THANH THƯỚC ĐO KHOẢNG CÁCH TRỰC QUAN */
+#distance-bar-wrapper {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+#bar-track {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  background: #1e293b;
+  border-radius: 8px;
+  overflow: visible;
+  margin: 6px 0;
+}
+
+#bar-zone-critical {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(239, 68, 68, 0.8);
+  border-radius: 8px 0 0 8px;
+}
+
+#bar-zone-warning {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(245, 158, 11, 0.8);
+}
+
+#bar-zone-safe {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: rgba(16, 185, 129, 0.8);
+  border-radius: 0 8px 8px 0;
+}
+
+#bar-legal-marker {
+  position: absolute;
+  top: -6px;
+  width: 3px;
+  height: 28px;
+  background: #ffffff;
+  box-shadow: 0 0 6px #ffffff;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+#bar-car-pointer {
+  position: absolute;
+  top: -8px;
+  width: 16px;
+  height: 32px;
+  transform: translateX(-50%);
+  z-index: 4;
+  transition: left 0.15s ease-out;
+}
+
+#bar-car-pointer::after {
+  content: "🚗";
+  font-size: 16px;
+  position: absolute;
+  top: -4px;
+  left: -2px;
+}
+
+.bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* NÚT BẮT ĐẦU VÀ OVERLAY KHỞI ĐỘNG */
+#start-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(5, 8, 17, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.start-btn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 16px 36px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 24px;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.start-btn:active {
+  transform: scale(0.96);
+}
+
+.notice-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 12px;
+  color: #cbd5e1;
+  max-width: 380px;
+  margin-top: 20px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* TỐI ƯU GIAO DIỆN MÀN HÌNH XOAY NGANG (LANDSCAPE COCKPIT HUD) */
+@media (orientation: landscape) {
+  #alert-banner {
+    top: 12px;
+    font-size: 14px;
+    padding: 6px 14px;
+  }
+  #top-hud {
+    top: 8px;
+  }
+  #bottom-hud {
+    bottom: 8px;
+    max-width: 600px;
+    margin: 0 auto;
+    left: 20px;
+    right: 20px;
+  }
+  .metric-value {
+    font-size: 20px;
+  }
+}
