@@ -54,9 +54,9 @@ async function startAdasSystem(demo = false) {
   if (isDemoMode) {
     modeText.textContent = "Thử Nghiệm";
     modeIcon.textContent = "🎮";
-    updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    window.addEventListener('orientationchange', () => setTimeout(updateCanvasSize, 300));
+    applyOrientation();
+    window.addEventListener('resize', applyOrientation);
+    window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 250));
   } else {
     modeText.textContent = "Camera Thật";
     modeIcon.textContent = "📷";
@@ -74,16 +74,16 @@ async function startAdasSystem(demo = false) {
       videoEl.srcObject = stream;
       await videoEl.play();
 
-      updateCanvasSize();
-      window.addEventListener('resize', updateCanvasSize);
-      window.addEventListener('orientationchange', () => setTimeout(updateCanvasSize, 300));
+      applyOrientation();
+      window.addEventListener('resize', applyOrientation);
+      window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 250));
     } catch (err) {
       console.warn("Lỗi camera thật, chuyển sang chế độ Mô phỏng:", err);
       alert("Không mở được camera sau điện thoại (" + err.message + "). Hệ thống sẽ chuyển sang Chế độ Mô phỏng để bạn trải nghiệm!");
       isDemoMode = true;
       modeText.textContent = "Thử Nghiệm";
       modeIcon.textContent = "🎮";
-      updateCanvasSize();
+      applyOrientation();
     }
 
     // 2. Kích hoạt GPS đo tốc độ thực tế
@@ -97,13 +97,79 @@ async function startAdasSystem(demo = false) {
   requestAnimationFrame(processFrame);
 }
 
+// Quản lý chế độ Xoay Màn Hình: 'auto', 'landscape', 'portrait'
+let orientationMode = 'auto';
+
+function cycleOrientation() {
+  const icon = document.getElementById('orient-icon');
+  const text = document.getElementById('orient-text');
+
+  if (orientationMode === 'auto') {
+    orientationMode = 'landscape';
+    if (text) text.textContent = "Ngang";
+    if (icon) icon.textContent = "🔄";
+  } else if (orientationMode === 'landscape') {
+    orientationMode = 'portrait';
+    if (text) text.textContent = "Đứng";
+    if (icon) icon.textContent = "🔄";
+  } else {
+    orientationMode = 'auto';
+    if (text) text.textContent = "Tự động";
+    if (icon) icon.textContent = "🔄";
+  }
+
+  applyOrientation();
+}
+
+function applyOrientation() {
+  const container = document.getElementById('app-container');
+  if (!container) return;
+
+  container.classList.remove('forced-landscape', 'forced-portrait');
+
+  // Thử Screen Orientation API của trình duyệt nếu được phép
+  if (screen.orientation && screen.orientation.lock) {
+    if (orientationMode === 'landscape') {
+      screen.orientation.lock('landscape').catch(() => {});
+    } else if (orientationMode === 'portrait') {
+      screen.orientation.lock('portrait').catch(() => {});
+    } else {
+      try { screen.orientation.unlock(); } catch (e) {}
+    }
+  }
+
+  // Ép xoay bằng CSS Transform nếu điện thoại đang bật khóa xoay hệ thống
+  const winW = window.innerWidth;
+  const winH = window.innerHeight;
+  const isPhysicallyPortrait = winW < winH;
+
+  if (orientationMode === 'landscape' && isPhysicallyPortrait) {
+    container.classList.add('forced-landscape');
+  } else if (orientationMode === 'portrait' && !isPhysicallyPortrait) {
+    container.classList.add('forced-portrait');
+  }
+
+  setTimeout(updateCanvasSize, 150);
+}
+
 function updateCanvasSize() {
-  if (!isDemoMode && videoEl.videoWidth && videoEl.videoHeight) {
+  const container = document.getElementById('app-container');
+  const isForced = container && (container.classList.contains('forced-landscape') || container.classList.contains('forced-portrait'));
+
+  let w = window.innerWidth || 800;
+  let h = window.innerHeight || 450;
+
+  if (isForced) {
+    w = window.innerHeight;
+    h = window.innerWidth;
+  }
+
+  if (!isDemoMode && videoEl && videoEl.videoWidth && videoEl.videoHeight) {
     canvasEl.width = videoEl.videoWidth;
     canvasEl.height = videoEl.videoHeight;
   } else {
-    canvasEl.width = window.innerWidth || 800;
-    canvasEl.height = window.innerHeight || 450;
+    canvasEl.width = w;
+    canvasEl.height = h;
   }
 }
 

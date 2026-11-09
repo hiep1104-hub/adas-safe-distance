@@ -27,7 +27,7 @@
     <div id="top-hud">
       <div class="hud-pill" id="gps-status" onclick="promptManualSpeed()">
         <span id="gps-dot">🟢</span>
-        <span id="gps-text">GPS: Đang dò...</span>
+        <span id="gps-text">GPS</span>
       </div>
 
       <div class="hud-pill" id="btn-mode" onclick="toggleDemoMode()">
@@ -35,9 +35,15 @@
         <span id="mode-text">Camera Thật</span>
       </div>
 
+      <!-- NÚT XOAY MÀN HÌNH TÙY Ý (NGANG / ĐỨNG / TỰ ĐỘNG) -->
+      <div class="hud-pill" id="btn-orientation" onclick="cycleOrientation()">
+        <span id="orient-icon">🔄</span>
+        <span id="orient-text">Tự động</span>
+      </div>
+
       <div class="hud-pill" id="btn-weather" onclick="toggleWeather()">
         <span id="weather-icon">☀️</span>
-        <span id="weather-text">Khô ráo</span>
+        <span id="weather-text">Khô</span>
       </div>
 
       <div class="hud-pill" id="btn-audio" onclick="toggleAudio()">
@@ -112,11 +118,11 @@
 
       <div class="notice-box">
         <strong>📋 Hướng Dẫn Sử Dụng Trực Tiếp Trên Xe:</strong><br>
-        1. Gắn điện thoại lên giá đỡ (kẹp kính chắn gió hoặc taplo xe).<br>
-        2. Camera sau hướng thẳng làn đường xe chạy.<br>
+        1. Gắn điện thoại lên giá đỡ (kẹp kính lái hoặc taplo xe).<br>
+        2. Bấm nút <strong>🔄 Xoay</strong> trên màn hình để chuyển màn hình <strong>Ngang</strong> hoặc <strong>Đứng</strong> tùy ý.<br>
         3. Tự động đọc tốc độ thực từ <strong>GPS vệ tinh</strong>.<br>
-        4. Tự động giữ màn hình luôn sáng, không bị tắt khi xe chạy.<br>
-        5. Phát tiếng bíp và giọng nói tiếng Việt qua loa điện thoại hoặc dàn loa ô tô (Bluetooth/CarPlay).
+        4. Tự động giữ màn hình luôn sáng khi xe chạy.<br>
+        5. Phát tiếng bíp và giọng nói tiếng Việt qua loa điện thoại hoặc dàn loa ô tô.
       </div>
     </div>
   </div>

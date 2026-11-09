@@ -8,13 +8,13 @@
   user-select: none;
 }
 
-body {
+html, body {
   background-color: #000000;
   color: #f0f4f8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   position: relative;
 }
 
@@ -25,6 +25,35 @@ body {
   flex-direction: column;
   position: relative;
   background: #050811;
+  transition: transform 0.25s ease-in-out;
+}
+
+/* ========================================================
+   CHẾ ĐỘ ÉP XOAY NGANG (FORCED LANDSCAPE) KHI ĐIỆN THOẠI ĐANG ĐỨNG
+   ======================================================== */
+#app-container.forced-landscape {
+  position: fixed !important;
+  width: 100vh !important;
+  height: 100vw !important;
+  top: 0 !important;
+  left: 100vw !important;
+  transform: rotate(90deg) !important;
+  transform-origin: top left !important;
+  overflow: hidden !important;
+}
+
+/* ========================================================
+   CHẾ ĐỘ ÉP XOAY ĐỨNG (FORCED PORTRAIT) KHI ĐIỆN THOẠI ĐANG NẰM NGANG
+   ======================================================== */
+#app-container.forced-portrait {
+  position: fixed !important;
+  width: 100vh !important;
+  height: 100vw !important;
+  top: 100vh !important;
+  left: 0 !important;
+  transform: rotate(-90deg) !important;
+  transform-origin: top left !important;
+  overflow: hidden !important;
 }
 
 /* KHUNG CAMERA VIEWPORT */
@@ -61,31 +90,40 @@ body {
 #top-hud {
   position: absolute;
   top: 10px;
-  left: 12px;
-  right: 12px;
+  left: 10px;
+  right: 10px;
   z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
   pointer-events: auto;
 }
 
 .hud-pill {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.78);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 6px 10px;
+  font-size: 12px;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#btn-orientation {
+  background: rgba(30, 58, 138, 0.85);
+  border: 1px solid #60a5fa;
+  color: #bfdbfe;
 }
 
 #btn-weather {
-  cursor: pointer;
   background: rgba(30, 41, 59, 0.85);
   border: 1px solid #3b82f6;
   color: #93c5fd;
@@ -97,24 +135,20 @@ body {
   color: #ffffff;
 }
 
-#btn-audio {
-  cursor: pointer;
-}
-
 /* CẢNH BÁO TRUNG TÂM NỔI BẬT */
 #alert-banner {
   position: absolute;
-  top: 60px;
+  top: 55px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  width: 90%;
-  max-width: 460px;
-  padding: 10px 16px;
+  width: 92%;
+  max-width: 480px;
+  padding: 8px 14px;
   border-radius: 12px;
   text-align: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: 0.5px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   transition: all 0.25s ease;
@@ -141,26 +175,26 @@ body {
 
 @keyframes pulse-danger {
   0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 10px #ef4444; }
-  100% { transform: translateX(-50%) scale(1.04); box-shadow: 0 0 30px #ef4444; }
+  100% { transform: translateX(-50%) scale(1.03); box-shadow: 0 0 25px #ef4444; }
 }
 
 #alert-subtext {
   font-size: 11px;
   font-weight: 500;
-  margin-top: 3px;
+  margin-top: 2px;
   opacity: 0.9;
 }
 
 /* ĐỒNG HỒ & THÔNG SỐ BOTTOM HUD */
 #bottom-hud {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   pointer-events: auto;
 }
 
@@ -176,12 +210,12 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   text-align: center;
 }
 
 .metric-label {
-  font-size: 10px;
+  font-size: 9px;
   color: #94a3b8;
   font-weight: 600;
   text-transform: uppercase;
@@ -189,7 +223,7 @@ body {
 }
 
 .metric-value {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   font-family: "Courier New", monospace, sans-serif;
 }
@@ -213,17 +247,17 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 8px 12px;
+  padding: 6px 12px;
 }
 
 #bar-track {
   position: relative;
   width: 100%;
-  height: 16px;
+  height: 14px;
   background: #1e293b;
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: visible;
-  margin: 6px 0;
+  margin: 5px 0;
 }
 
 #bar-zone-critical {
@@ -232,7 +266,7 @@ body {
   top: 0;
   height: 100%;
   background: rgba(239, 68, 68, 0.8);
-  border-radius: 8px 0 0 8px;
+  border-radius: 7px 0 0 7px;
 }
 
 #bar-zone-warning {
@@ -248,14 +282,14 @@ body {
   right: 0;
   height: 100%;
   background: rgba(16, 185, 129, 0.8);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 7px 7px 0;
 }
 
 #bar-legal-marker {
   position: absolute;
-  top: -6px;
+  top: -5px;
   width: 3px;
-  height: 28px;
+  height: 24px;
   background: #ffffff;
   box-shadow: 0 0 6px #ffffff;
   transform: translateX(-50%);
@@ -264,9 +298,9 @@ body {
 
 #bar-car-pointer {
   position: absolute;
-  top: -8px;
+  top: -7px;
   width: 16px;
-  height: 32px;
+  height: 28px;
   transform: translateX(-50%);
   z-index: 4;
   transition: left 0.15s ease-out;
@@ -274,7 +308,7 @@ body {
 
 #bar-car-pointer::after {
   content: "🚗";
-  font-size: 16px;
+  font-size: 15px;
   position: absolute;
   top: -4px;
   left: -2px;
@@ -283,12 +317,12 @@ body {
 .bar-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 9px;
   color: #64748b;
   font-weight: 600;
 }
 
-/* NÚT BẮT ĐẦU VÀ OVERLAY KHỞI ĐỘNG */
+/* MÀN HÌNH BẮT ĐẦU */
 #start-overlay {
   position: absolute;
   top: 0;
@@ -303,7 +337,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 20px;
   text-align: center;
 }
 
@@ -312,10 +346,10 @@ body {
   color: white;
   border: none;
   border-radius: 50px;
-  padding: 16px 36px;
-  font-size: 18px;
+  padding: 14px 30px;
+  font-size: 16px;
   font-weight: 700;
-  margin-top: 24px;
+  margin-top: 14px;
   cursor: pointer;
   box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5);
   transition: transform 0.15s ease;
@@ -329,33 +363,48 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  padding: 14px;
+  padding: 12px;
   font-size: 12px;
   color: #cbd5e1;
   max-width: 380px;
-  margin-top: 20px;
+  margin-top: 16px;
   line-height: 1.5;
   text-align: left;
 }
 
-/* TỐI ƯU GIAO DIỆN MÀN HÌNH XOAY NGANG (LANDSCAPE COCKPIT HUD) */
-@media (orientation: landscape) {
-  #alert-banner {
-    top: 12px;
-    font-size: 14px;
-    padding: 6px 14px;
-  }
+/* ========================================================
+   TỐI ƯU HÓA LANDSCAPE (XOAY NGANG TAPLO Ô TÔ)
+   ======================================================== */
+@media (orientation: landscape), (max-height: 520px) {
   #top-hud {
-    top: 8px;
+    top: 6px;
+    padding: 0 10px;
+  }
+  .hud-pill {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  #alert-banner {
+    top: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    max-width: 380px;
   }
   #bottom-hud {
-    bottom: 8px;
-    max-width: 600px;
+    bottom: 6px;
+    max-width: 650px;
     margin: 0 auto;
     left: 20px;
     right: 20px;
+    gap: 6px;
+  }
+  .metric-card {
+    padding: 4px 6px;
   }
   .metric-value {
-    font-size: 20px;
+    font-size: 19px;
+  }
+  #distance-bar-wrapper {
+    padding: 4px 10px;
   }
 }
