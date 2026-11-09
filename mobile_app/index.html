@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ADAS SafeDist">
   <meta name="theme-color" content="#000000">
-  <title>ADAS SafeDistance Pro - Mobile HUD</title>
+  <title>ADAS SafeDistance Pro - Mobile HUD (Tốc Độ & Đường Cấm)</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 
@@ -25,6 +25,12 @@
 
     <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) -->
     <div id="top-hud">
+      <!-- BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127) - BẤM VÀO ĐỂ ĐỔI -->
+      <div class="speed-sign-badge" id="sign-speed-limit" onclick="openSpeedLimitModal()" title="Chạm để đổi tốc độ tối đa cho phép">
+        <span class="speed-sign-label">TỐI ĐA</span>
+        <span id="limit-number">80</span>
+      </div>
+
       <div class="hud-pill" id="gps-status" onclick="promptManualSpeed()">
         <span id="gps-dot">🟢</span>
         <span id="gps-text">GPS</span>
@@ -51,14 +57,30 @@
       </div>
     </div>
 
-    <!-- BANNER CẢNH BÁO TRUNG TÂM -->
+    <!-- BANNER CẢNH BÁO TRUNG TÂM (CỰ LY & VA CHẠM) -->
     <div id="alert-banner" class="safe">
       <div id="alert-title">ĐANG QUAN SÁT LÀN ĐƯỜNG</div>
       <div id="alert-subtext">Căn cứ Thông tư 31/2019/TT-BGTVT</div>
     </div>
 
+    <!-- HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102, P.103a) -->
+    <div id="forbidden-road-alert" class="forbidden-alert-box hidden" onclick="dismissForbiddenAlert()">
+      <div class="forbidden-icon">⛔</div>
+      <div class="forbidden-info">
+        <div class="forbidden-title">CẢNH BÁO: ĐƯỜNG CẤM / NGƯỢC CHIỀU!</div>
+        <div class="forbidden-sub">Phát hiện Biển P.102 / P.101 — Không được đi vào!</div>
+      </div>
+    </div>
+
     <!-- BẢNG ĐIỀU KHIỂN & ĐỒNG HỒ DƯỚI CÙNG (BOTTOM HUD) -->
     <div id="bottom-hud">
+      <!-- NÚT THỬ NGHIỆM TÌNH HUỐNG NHANH TRONG CHẾ ĐỘ DEMO -->
+      <div id="demo-quick-bar" style="display:none;">
+        <button class="demo-btn" onclick="triggerSpeedingTest()">⚡ Thử Quá Tốc Độ</button>
+        <button class="demo-btn danger" onclick="triggerForbiddenTest()">⛔ Thử Biển Đường Cấm</button>
+        <button class="demo-btn warn" onclick="triggerBrakeTest()">🛑 Thử Phanh Gấp</button>
+      </div>
+
       <!-- THANH ĐO KHOẢNG CÁCH TRỰC QUAN -->
       <div id="distance-bar-wrapper">
         <div class="bar-labels">
@@ -84,28 +106,71 @@
       <!-- CÁC THẺ METRICS TELEMETRY -->
       <div class="metrics-row">
         <div class="metric-card" onclick="promptManualSpeed()">
-          <div class="metric-label">VẬN TỐC (CHẠM ĐỔI)</div>
+          <div class="metric-label">VẬN TỐC THỰC TẾ</div>
           <div class="metric-value" id="val-speed">80<span class="metric-unit">km/h</span></div>
+          <div class="metric-sub" id="speed-status-sub" style="font-size:10px; color:#38bdf8;">Giới hạn: 80 km/h</div>
         </div>
 
         <div class="metric-card">
           <div class="metric-label">CỰ LY XE TRƯỚC</div>
           <div class="metric-value" id="val-distance">--<span class="metric-unit">m</span></div>
+          <div class="metric-sub" id="dist-status-sub" style="font-size:10px; color:#4ade80;">Khoảng cách an toàn</div>
         </div>
 
         <div class="metric-card">
           <div class="metric-label">VA CHẠM (TTC)</div>
           <div class="metric-value" id="val-ttc">--<span class="metric-unit">s</span></div>
+          <div class="metric-sub" style="font-size:10px; color:#f472b6;">Thời gian va chạm</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CHỌN TỐC ĐỘ GIỚI HẠN TUYẾN ĐƯỜNG (SPEED LIMIT PICKER) -->
+    <div id="speed-modal" class="modal-backdrop" style="display: none;" onclick="closeSpeedLimitModal(event)">
+      <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3>🚦 Chọn Giới Hạn Tốc Độ Tuyến Đường</h3>
+          <p>Căn cứ Thông tư 31/2019/TT-BGTVT & QCVN 41:2019/BGTVT</p>
+        </div>
+        <div class="speed-btn-grid">
+          <button class="btn-speed-pick" onclick="setSpeedLimit(50)">
+            <span class="speed-num">50</span>
+            <span class="speed-desc">Đô thị (2 chiều)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(60)">
+            <span class="speed-num">60</span>
+            <span class="speed-desc">Đô thị (Đường đôi)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(80)">
+            <span class="speed-num">80</span>
+            <span class="speed-desc">Ngoài đô thị (2 chiều)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(90)">
+            <span class="speed-num">90</span>
+            <span class="speed-desc">Ngoài đô thị (Đường đôi)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(100)">
+            <span class="speed-num">100</span>
+            <span class="speed-desc">Đường Cao Tốc</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(120)">
+            <span class="speed-num">120</span>
+            <span class="speed-desc">Cao Tốc Tối Đa</span>
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-custom-speed" onclick="customSpeedLimitPrompt()">✏️ Nhập Tốc Độ Khác...</button>
+          <button class="btn-close-modal" onclick="closeSpeedLimitModal()">Đóng</button>
         </div>
       </div>
     </div>
 
     <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS -->
     <div id="start-overlay">
-      <div style="font-size: 46px; margin-bottom: 10px;">🚗💨</div>
+      <div style="font-size: 46px; margin-bottom: 10px;">🛡️🚗</div>
       <h2 style="font-size: 22px; font-weight: 800; color: #38bdf8; margin-bottom: 6px;">ADAS SafeDistance Pro</h2>
-      <p style="font-size: 13px; color: #94a3b8; max-width: 320px; margin-bottom: 4px;">
-        Đo Khoảng Cách & Cảnh Báo An Toàn Theo Thông Tư 31/2019/TT-BGTVT
+      <p style="font-size: 13px; color: #94a3b8; max-width: 330px; margin-bottom: 4px;">
+        Cảnh Báo Khoảng Cách Xe • Tốc Độ Giới Hạn • Biển Báo Đường Cấm
       </p>
 
       <button class="start-btn" onclick="startAdasSystem(false)">
@@ -117,12 +182,11 @@
       </button>
 
       <div class="notice-box">
-        <strong>📋 Hướng Dẫn Sử Dụng Trực Tiếp Trên Xe:</strong><br>
-        1. Gắn điện thoại lên giá đỡ (kẹp kính lái hoặc taplo xe).<br>
-        2. Bấm nút <strong>🔄 Xoay</strong> trên màn hình để chuyển màn hình <strong>Ngang</strong> hoặc <strong>Đứng</strong> tùy ý.<br>
-        3. Tự động đọc tốc độ thực từ <strong>GPS vệ tinh</strong>.<br>
-        4. Tự động giữ màn hình luôn sáng khi xe chạy.<br>
-        5. Phát tiếng bíp và giọng nói tiếng Việt qua loa điện thoại hoặc dàn loa ô tô.
+        <strong>📋 Tính Năng Nâng Cấp Khi Lái Xe:</strong><br>
+        1. <strong>Cảnh Báo Quá Tốc Độ</strong>: Tự động so sánh GPS xe với tốc độ tối đa quy định (50, 60, 80, 90, 100, 120 km/h) theo Thông tư 31.<br>
+        2. <strong>Cảnh Báo Đường Cấm</strong>: Nhận diện biển cấm đi ngược chiều (Biển P.102) & biển đường cấm (Biển P.101).<br>
+        3. <strong>Đo Khoảng Cách An Toàn</strong>: Báo động bám đuôi gần, xe phanh gấp.<br>
+        4. <strong>Giọng Nói Tiếng Việt & Còi Bíp</strong>: Thông báo tức thì qua loa điện thoại hoặc dàn loa ô tô.
       </div>
     </div>
   </div>

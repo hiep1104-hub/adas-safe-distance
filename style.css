@@ -29,7 +29,7 @@ html, body {
 }
 
 /* ========================================================
-   CHẾ ĐỘ ÉP XOAY NGANG (FORCED LANDSCAPE) KHI ĐIỆN THOẠI ĐANG ĐỨNG
+   CHẾ ĐỘ ÉP XOAY NGANG & ĐỨNG (CSS TRANSFORM)
    ======================================================== */
 #app-container.forced-landscape {
   position: fixed !important;
@@ -42,9 +42,6 @@ html, body {
   overflow: hidden !important;
 }
 
-/* ========================================================
-   CHẾ ĐỘ ÉP XOAY ĐỨNG (FORCED PORTRAIT) KHI ĐIỆN THOẠI ĐANG NẰM NGANG
-   ======================================================== */
 #app-container.forced-portrait {
   position: fixed !important;
   width: 100vh !important;
@@ -89,9 +86,9 @@ html, body {
 /* TOP STATUS BAR */
 #top-hud {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
+  top: 8px;
+  left: 8px;
+  right: 8px;
   z-index: 10;
   display: flex;
   justify-content: space-between;
@@ -107,14 +104,64 @@ html, body {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 5px 9px;
+  font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* ========================================================
+   BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127 CHUẨN QCVN 41:2019/BGTVT)
+   ======================================================== */
+.speed-sign-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 5px solid #dc2626;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.speed-sign-badge:active {
+  transform: scale(0.92);
+}
+
+.speed-sign-label {
+  font-size: 6px;
+  font-weight: 800;
+  color: #dc2626;
+  margin-top: -2px;
+  letter-spacing: -0.2px;
+}
+
+#limit-number {
+  font-size: 16px;
+  font-weight: 900;
+  color: #000000;
+  line-height: 14px;
+  font-family: -apple-system, sans-serif;
+}
+
+/* Hiệu ứng nhấp nháy khi xe chạy quá tốc độ */
+.speed-sign-badge.overspeed {
+  animation: pulse-speeding 0.4s infinite alternate;
+  box-shadow: 0 0 16px #ef4444;
+}
+
+@keyframes pulse-speeding {
+  0% { transform: scale(1.0); border-color: #ef4444; background: #fff; }
+  100% { transform: scale(1.15); border-color: #ff0000; background: #fee2e2; }
 }
 
 #btn-orientation {
@@ -135,10 +182,12 @@ html, body {
   color: #ffffff;
 }
 
-/* CẢNH BÁO TRUNG TÂM NỔI BẬT */
+/* ========================================================
+   CẢNH BÁO TRUNG TÂM
+   ======================================================== */
 #alert-banner {
   position: absolute;
-  top: 55px;
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -185,23 +234,108 @@ html, body {
   opacity: 0.9;
 }
 
-/* ĐỒNG HỒ & THÔNG SỐ BOTTOM HUD */
+/* ========================================================
+   HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102)
+   ======================================================== */
+.forbidden-alert-box {
+  position: absolute;
+  top: 115px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  width: 90%;
+  max-width: 440px;
+  background: rgba(185, 28, 28, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2px solid #f87171;
+  border-radius: 12px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 30px rgba(220, 38, 38, 0.7);
+  animation: pulse-forbidden 0.4s infinite alternate;
+  cursor: pointer;
+}
+
+.forbidden-alert-box.hidden {
+  display: none !important;
+}
+
+@keyframes pulse-forbidden {
+  0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 12px #dc2626; }
+  100% { transform: translateX(-50%) scale(1.03); box-shadow: 0 0 32px #ef4444; }
+}
+
+.forbidden-icon {
+  font-size: 28px;
+}
+
+.forbidden-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.forbidden-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fee2e2;
+  margin-top: 2px;
+}
+
+/* ========================================================
+   BOTTOM HUD & METRICS
+   ======================================================== */
 #bottom-hud {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   pointer-events: auto;
+}
+
+/* Nút thử nghiệm nhanh trong chế độ Demo */
+#demo-quick-bar {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.demo-btn {
+  background: rgba(30, 41, 59, 0.9);
+  color: #93c5fd;
+  border: 1px solid #3b82f6;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demo-btn.danger {
+  border-color: #ef4444;
+  color: #fca5a5;
+  background: rgba(69, 10, 10, 0.9);
+}
+
+.demo-btn.warn {
+  border-color: #f59e0b;
+  color: #fde68a;
+  background: rgba(69, 45, 10, 0.9);
 }
 
 .metrics-row {
   display: grid;
   grid-template-columns: 1fr 1.3fr 1fr;
-  gap: 8px;
+  gap: 6px;
 }
 
 .metric-card {
@@ -209,27 +343,28 @@ html, body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 6px 8px;
+  border-radius: 10px;
+  padding: 5px 6px;
   text-align: center;
 }
 
 .metric-label {
-  font-size: 9px;
+  font-size: 8px;
   color: #94a3b8;
   font-weight: 600;
   text-transform: uppercase;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .metric-value {
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 800;
   font-family: "Courier New", monospace, sans-serif;
+  line-height: 22px;
 }
 
 .metric-unit {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: #94a3b8;
   margin-left: 2px;
@@ -237,27 +372,26 @@ html, body {
 
 #val-speed { color: #38bdf8; }
 #val-distance { color: #4ade80; }
-#val-legal { color: #facc15; }
 #val-ttc { color: #f472b6; }
 
-/* THANH THƯỚC ĐO KHOẢNG CÁCH TRỰC QUAN */
+/* THANH THƯỚC ĐO KHOẢNG CÁCH */
 #distance-bar-wrapper {
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 6px 12px;
+  border-radius: 10px;
+  padding: 5px 10px;
 }
 
 #bar-track {
   position: relative;
   width: 100%;
-  height: 14px;
+  height: 12px;
   background: #1e293b;
-  border-radius: 7px;
+  border-radius: 6px;
   overflow: visible;
-  margin: 5px 0;
+  margin: 4px 0;
 }
 
 #bar-zone-critical {
@@ -266,7 +400,7 @@ html, body {
   top: 0;
   height: 100%;
   background: rgba(239, 68, 68, 0.8);
-  border-radius: 7px 0 0 7px;
+  border-radius: 6px 0 0 6px;
 }
 
 #bar-zone-warning {
@@ -282,14 +416,14 @@ html, body {
   right: 0;
   height: 100%;
   background: rgba(16, 185, 129, 0.8);
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 6px 6px 0;
 }
 
 #bar-legal-marker {
   position: absolute;
   top: -5px;
   width: 3px;
-  height: 24px;
+  height: 22px;
   background: #ffffff;
   box-shadow: 0 0 6px #ffffff;
   transform: translateX(-50%);
@@ -300,7 +434,7 @@ html, body {
   position: absolute;
   top: -7px;
   width: 16px;
-  height: 28px;
+  height: 26px;
   transform: translateX(-50%);
   z-index: 4;
   transition: left 0.15s ease-out;
@@ -308,28 +442,137 @@ html, body {
 
 #bar-car-pointer::after {
   content: "🚗";
-  font-size: 15px;
+  font-size: 14px;
   position: absolute;
-  top: -4px;
+  top: -3px;
   left: -2px;
 }
 
 .bar-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 8px;
   color: #64748b;
   font-weight: 600;
 }
 
-/* MÀN HÌNH BẮT ĐẦU */
+/* ========================================================
+   MODAL CHỌN TỐC ĐỘ GIỚI HẠN
+   ======================================================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.modal-header p {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 14px;
+}
+
+.speed-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.btn-speed-pick {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  color: #f1f5f9;
+  transition: all 0.15s ease;
+}
+
+.btn-speed-pick:active, .btn-speed-pick.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+}
+
+.speed-num {
+  font-size: 24px;
+  font-weight: 900;
+  display: block;
+  color: #ffffff;
+}
+
+.speed-desc {
+  font-size: 10px;
+  color: #cbd5e1;
+  display: block;
+  margin-top: 2px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-custom-speed {
+  flex: 1;
+  background: #334155;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-close-modal {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ========================================================
+   MÀN HÌNH BẮT ĐẦU
+   ======================================================== */
 #start-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(5, 8, 17, 0.95);
+  background: rgba(5, 8, 17, 0.96);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 100;
@@ -337,7 +580,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 18px;
   text-align: center;
 }
 
@@ -346,10 +589,10 @@ html, body {
   color: white;
   border: none;
   border-radius: 50px;
-  padding: 14px 30px;
-  font-size: 16px;
+  padding: 14px 28px;
+  font-size: 15px;
   font-weight: 700;
-  margin-top: 14px;
+  margin-top: 12px;
   cursor: pointer;
   box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5);
   transition: transform 0.15s ease;
@@ -364,10 +607,10 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 12px;
-  font-size: 12px;
+  font-size: 11px;
   color: #cbd5e1;
   max-width: 380px;
-  margin-top: 16px;
+  margin-top: 14px;
   line-height: 1.5;
   text-align: left;
 }
@@ -377,34 +620,47 @@ html, body {
    ======================================================== */
 @media (orientation: landscape), (max-height: 520px) {
   #top-hud {
-    top: 6px;
-    padding: 0 10px;
+    top: 5px;
+    padding: 0 8px;
   }
   .hud-pill {
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+  .speed-sign-badge {
+    width: 38px;
+    height: 38px;
+    border-width: 4px;
+  }
+  #limit-number {
+    font-size: 14px;
   }
   #alert-banner {
-    top: 6px;
-    padding: 5px 12px;
-    font-size: 13px;
-    max-width: 380px;
+    top: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    max-width: 360px;
+  }
+  .forbidden-alert-box {
+    top: 48px;
+    padding: 6px 12px;
   }
   #bottom-hud {
-    bottom: 6px;
-    max-width: 650px;
+    bottom: 5px;
+    max-width: 680px;
     margin: 0 auto;
-    left: 20px;
-    right: 20px;
-    gap: 6px;
+    left: 14px;
+    right: 14px;
+    gap: 4px;
   }
   .metric-card {
-    padding: 4px 6px;
+    padding: 3px 5px;
   }
   .metric-value {
-    font-size: 19px;
+    font-size: 18px;
+    line-height: 18px;
   }
   #distance-bar-wrapper {
-    padding: 4px 10px;
+    padding: 3px 8px;
   }
 }
