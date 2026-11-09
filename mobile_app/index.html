@@ -23,37 +23,52 @@
       <canvas id="ar-canvas"></canvas>
     </div>
 
-    <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) -->
+    <!-- THANH TRẠNG THÁI TRÊN CÙNG (TOP HUD) - VUỐT NGANG ĐỂ XEM HẾT NÚT -->
     <div id="top-hud">
-      <!-- BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127) - TỰ ĐỘNG NHẬN DIỆN -->
-      <div class="speed-sign-badge" id="sign-speed-limit" title="Tốc độ tối đa tự động nhận diện">
+      <!-- BIỂN BÁO TỐC ĐỘ GIỚI HẠN (P.127) - CHẠM ĐỂ CHỌN HOẶC ĐỂ TỰ ĐỘNG -->
+      <div class="speed-sign-badge" id="sign-speed-limit" onclick="openSpeedLimitModal()" title="Chạm để chọn tốc độ hoặc chế độ Tự động">
         <span class="speed-sign-label" id="speed-source-label">TỰ ĐỘNG</span>
         <span id="limit-number">80</span>
       </div>
 
       <!-- HUY HIỆU ĐỖ XE NGÀY CHẴN / LẺ TỰ ĐỘNG THEO LỊCH HÔM NAY -->
-      <div class="hud-pill" id="parking-day-badge" onclick="toggleParkingAdvisor()">
+      <div class="hud-pill" id="parking-day-badge" onclick="toggleParkingAdvisor()" title="Chạm để xem quy định đỗ xe ngày chẵn lẻ">
         <span id="parking-icon">🅿️</span>
         <span id="parking-day-text">Hôm nay: Ngày Lẻ</span>
       </div>
 
-      <div class="hud-pill" id="btn-vehicle-type" onclick="toggleVehicleType()">
+      <!-- LOẠI XE: Ô TÔ CON HOẶC XE TẢI -->
+      <div class="hud-pill" id="btn-vehicle-type" onclick="toggleVehicleType()" title="Chạm để chuyển Ô tô con / Xe tải">
         <span id="vehicle-icon">🚗</span>
         <span id="vehicle-text">Ô tô con</span>
       </div>
 
+      <!-- CHUYỂN ĐỔI CHẾ ĐỘ: CAMERA THẬT HOẶC MÔ PHỎNG -->
+      <div class="hud-pill" id="btn-mode" onclick="toggleDemoMode()" title="Chuyển Camera / Thử nghiệm">
+        <span id="mode-icon">📷</span>
+        <span id="mode-text">Camera Thật</span>
+      </div>
+
+      <!-- TRẠNG THÁI GPS & NHẬP VẬN TỐC TÙY Ý -->
+      <div class="hud-pill" id="gps-status" onclick="promptManualSpeed()" title="GPS (Chạm để nhập vận tốc)">
+        <span id="gps-dot">🟢</span>
+        <span id="gps-text">GPS</span>
+      </div>
+
       <!-- NÚT XOAY MÀN HÌNH TÙY Ý (NGANG / ĐỨNG) -->
-      <div class="hud-pill" id="btn-orientation" onclick="cycleOrientation()">
+      <div class="hud-pill" id="btn-orientation" onclick="cycleOrientation()" title="Xoay màn hình ngang/đứng">
         <span id="orient-icon">🔄</span>
         <span id="orient-text">Tự động</span>
       </div>
 
-      <div class="hud-pill" id="btn-weather" onclick="toggleWeather()">
+      <!-- CHẾ ĐỘ THỜI TIẾT MƯA / KHÔ -->
+      <div class="hud-pill" id="btn-weather" onclick="toggleWeather()" title="Thời tiết Khô / Mưa (+40% cự ly)">
         <span id="weather-icon">☀️</span>
         <span id="weather-text">Khô</span>
       </div>
 
-      <div class="hud-pill" id="btn-audio" onclick="toggleAudio()">
+      <!-- BẬT / TẮT ÂM THANH CÒI BÍP VÀ GIỌNG NÓI -->
+      <div class="hud-pill" id="btn-audio" onclick="toggleAudio()" title="Bật/Tắt âm thanh">
         <span id="audio-icon">🔊</span>
       </div>
     </div>
@@ -102,16 +117,17 @@
 
     <!-- BẢNG ĐIỀU KHIỂN & ĐỒNG HỒ DƯỚI CÙNG (BOTTOM HUD) -->
     <div id="bottom-hud">
-      <!-- NÚT THỬ NGHIỆM TÌNH HUỐNG TRONG CHẾ ĐỘ DEMO -->
+      <!-- NÚT THỬ NGHIỆM TÌNH HUỐNG TRONG CHẾ ĐỘ DEMO (VUỐT NGANG ĐỂ CHỌN) -->
       <div id="demo-quick-bar" style="display:none;">
         <button class="demo-btn" onclick="triggerSpeedingTest()">⚡ Quá Tốc Độ</button>
         <button class="demo-btn danger" onclick="triggerForbiddenTest()">⛔ Biển Đường Cấm</button>
         <button class="demo-btn danger" onclick="triggerForbiddenCarTest()">🚫 Cấm Ô Tô (P.103a)</button>
-        <button class="demo-btn warn" onclick="triggerPeakHourTest()">⏰ Cấm Giờ Cao Điểm</button>
+        <button class="demo-btn warn" onclick="triggerPeakHourTest()">⏰ Giờ Cao Điểm</button>
         <button class="demo-btn" onclick="triggerParkingAdvisorTest()">🅿️ Đỗ Chẵn/Lẻ</button>
+        <button class="demo-btn warn" onclick="triggerBrakeTest()">🛑 Phanh Gấp</button>
       </div>
 
-      <!-- THANH ĐO KHOẢNG CÁCH TRỰC QUAN -->
+      <!-- THANH ĐO KHOẢNG CÁCH TRỰC QUAN (CHẠM HOẶC KÉO ĐỂ DI CHUYỂN CHỌN CỰ LY) -->
       <div id="distance-bar-wrapper">
         <div class="bar-labels">
           <span>0m</span>
@@ -120,7 +136,7 @@
           <span style="color:#4ade80;">AN TOÀN</span>
           <span>120m</span>
         </div>
-        <div id="bar-track">
+        <div id="bar-track" title="Chạm hoặc kéo xe để chọn cự ly kiểm tra">
           <div id="bar-zone-critical" style="width: 25%;"></div>
           <div id="bar-zone-warning" style="left: 25%; width: 25%;"></div>
           <div id="bar-zone-safe" style="width: 50%;"></div>
@@ -129,22 +145,22 @@
         </div>
         <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:2px;">
           <span id="lbl-bar-legal" style="color:#facc15; font-weight:600;">Chuẩn: 55m</span>
-          <span id="lbl-bar-actual" style="color:#4ade80; font-weight:700;">Thực tế: -- m</span>
+          <span id="lbl-bar-actual" style="color:#4ade80; font-weight:700;">Thực tế: -- m (Kéo để chỉnh)</span>
         </div>
       </div>
 
-      <!-- CÁC THẺ METRICS TELEMETRY TỰ ĐỘNG -->
+      <!-- CÁC THẺ METRICS TELEMETRY -->
       <div class="metrics-row">
-        <div class="metric-card">
-          <div class="metric-label">VẬN TỐC GPS</div>
+        <div class="metric-card" onclick="promptManualSpeed()" title="Chạm để chọn vận tốc xe">
+          <div class="metric-label">VẬN TỐC XE</div>
           <div class="metric-value" id="val-speed">80<span class="metric-unit">km/h</span></div>
-          <div class="metric-sub" id="speed-status-sub" style="font-size:10px; color:#38bdf8;">Tự động quét giới hạn</div>
+          <div class="metric-sub" id="speed-status-sub" style="font-size:10px; color:#38bdf8;">Chạm để đổi số</div>
         </div>
 
-        <div class="metric-card">
+        <div class="metric-card" onclick="promptManualDistance()" title="Chạm để nhập cự ly xe trước">
           <div class="metric-label">CỰ LY XE TRƯỚC</div>
           <div class="metric-value" id="val-distance">--<span class="metric-unit">m</span></div>
-          <div class="metric-sub" id="dist-status-sub" style="font-size:10px; color:#4ade80;">Đo cự ly quang học</div>
+          <div class="metric-sub" id="dist-status-sub" style="font-size:10px; color:#4ade80;">Đo quang học / Kéo trượt</div>
         </div>
 
         <div class="metric-card">
@@ -155,12 +171,56 @@
       </div>
     </div>
 
-    <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS -->
+    <!-- MODAL CHỌN TỐC ĐỘ GIỚI HẠN TUYẾN ĐƯỜNG (CÓ TỰ ĐỘNG HOẶC CHỌN TAY) -->
+    <div id="speed-modal" class="modal-backdrop" style="display: none;" onclick="closeSpeedLimitModal(event)">
+      <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3>🚦 Chọn Giới Hạn Tốc Độ Tuyến Đường</h3>
+          <p>Căn cứ Thông tư 38/2024/TT-BGTVT (thay thế TT 31/2019) & Nghị định 168/2024/NĐ-CP</p>
+        </div>
+        <div class="speed-btn-grid">
+          <button class="btn-speed-pick auto-opt" onclick="setSpeedLimit('auto')">
+            <span class="speed-num">🤖 TỰ ĐỘNG</span>
+            <span class="speed-desc">Quét Camera Biển P.127 & Bản đồ GPS</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(50)">
+            <span class="speed-num">50</span>
+            <span class="speed-desc">Đô thị (2 chiều)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(60)">
+            <span class="speed-num">60</span>
+            <span class="speed-desc">Đô thị (Đường đôi)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(80)">
+            <span class="speed-num">80</span>
+            <span class="speed-desc">Ngoài đô thị (2 chiều)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(90)">
+            <span class="speed-num">90</span>
+            <span class="speed-desc">Ngoài đô thị (Đường đôi)</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(100)">
+            <span class="speed-num">100</span>
+            <span class="speed-desc">Đường Cao Tốc</span>
+          </button>
+          <button class="btn-speed-pick" onclick="setSpeedLimit(120)">
+            <span class="speed-num">120</span>
+            <span class="speed-desc">Cao Tốc Tối Đa</span>
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-custom-speed" onclick="customSpeedLimitPrompt()">✏️ Tùy Chỉnh Số Khác...</button>
+          <button class="btn-close-modal" onclick="closeSpeedLimitModal()">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÀN HÌNH BẮT ĐẦU & CẤP QUYỀN CAMERA / GPS (VUỐT CUỘN THOẢI MÁI) -->
     <div id="start-overlay">
-      <div style="font-size: 46px; margin-bottom: 10px;">🛡️🚗</div>
+      <div style="font-size: 44px; margin-bottom: 8px;">🛡️🚗</div>
       <h2 style="font-size: 22px; font-weight: 800; color: #38bdf8; margin-bottom: 6px;">ADAS SafeDistance Pro</h2>
-      <p style="font-size: 13px; color: #94a3b8; max-width: 330px; margin-bottom: 4px;">
-        Tự Động Nhận Diện: Khoảng Cách • Tốc Độ • Đường Cấm • Cấm Giờ • Đỗ Chẵn Lẻ
+      <p style="font-size: 13px; color: #94a3b8; max-width: 340px; margin-bottom: 8px;">
+        Hệ Thống Trợ Lái Thông Minh: Khoảng Cách • Tốc Độ • Đường Cấm • Đỗ Chẵn Lẻ
       </p>
 
       <button class="start-btn" onclick="startAdasSystem(false)">
@@ -177,7 +237,8 @@
         2. <strong>Cấm xe theo giờ</strong>: Tự động đối chiếu đồng hồ với khung giờ cao điểm cấm xe (06:00-09:00, 16:00-19:30).<br>
         3. <strong>Đậu xe ngày Chẵn / Lẻ</strong>: Tự động lấy lịch hôm nay, báo ngay bên nào được đỗ (Biển P.131b / P.131c).<br>
         4. <strong>Quá tốc độ</strong>: So sánh GPS xe với giới hạn cho phép (Nghị định 168/2024/NĐ-CP trừ điểm GPLX).<br>
-        5. <strong>Cự ly an toàn</strong>: Báo động bám đuôi gần, xe trước phanh gấp qua giọng nói tiếng Việt.
+        5. <strong>Cự ly an toàn</strong>: Báo động bám đuôi gần, xe trước phanh gấp qua giọng nói tiếng Việt.<br>
+        👉 <em>Bạn có thể chạm hoặc kéo thanh khoảng cách trên màn hình bất cứ lúc nào để kiểm tra cự ly!</em>
       </div>
     </div>
   </div>

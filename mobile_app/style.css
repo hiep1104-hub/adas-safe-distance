@@ -83,7 +83,9 @@ html, body {
   pointer-events: none;
 }
 
-/* TOP STATUS BAR */
+/* ========================================================
+   TOP STATUS BAR - VUỐT CUỘN NGANG MƯỢT MÀ
+   ======================================================== */
 #top-hud {
   position: absolute;
   top: 6px;
@@ -91,11 +93,19 @@ html, body {
   right: 6px;
   z-index: 10;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  padding: 4px 2px;
   pointer-events: auto;
+}
+
+#top-hud::-webkit-scrollbar {
+  display: none;
 }
 
 .hud-pill {
@@ -112,6 +122,8 @@ html, body {
   gap: 4px;
   white-space: nowrap;
   cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 #parking-day-badge {
@@ -143,6 +155,7 @@ html, body {
   cursor: pointer;
   flex-shrink: 0;
   transition: transform 0.15s ease;
+  touch-action: manipulation;
 }
 
 .speed-sign-badge:active {
@@ -161,112 +174,112 @@ html, body {
   font-size: 16px;
   font-weight: 900;
   color: #000000;
-  line-height: 14px;
-  font-family: -apple-system, sans-serif;
+  line-height: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "Arial Black", sans-serif;
 }
 
-.speed-sign-badge.overspeed {
-  animation: pulse-speeding 0.4s infinite alternate;
-  box-shadow: 0 0 16px #ef4444;
+.speed-sign-badge.overspeeding {
+  border-color: #ef4444;
+  animation: pulse-border 0.5s infinite alternate;
 }
 
-@keyframes pulse-speeding {
-  0% { transform: scale(1.0); border-color: #ef4444; background: #fff; }
-  100% { transform: scale(1.15); border-color: #ff0000; background: #fee2e2; }
+@keyframes pulse-border {
+  from {
+    box-shadow: 0 0 10px #ef4444, inset 0 0 6px #ef4444;
+    transform: scale(1);
+  }
+  to {
+    box-shadow: 0 0 25px #ef4444, inset 0 0 12px #ef4444;
+    transform: scale(1.08);
+  }
 }
 
-#btn-orientation {
-  background: rgba(30, 58, 138, 0.85);
-  border: 1px solid #60a5fa;
-  color: #bfdbfe;
-}
-
-#btn-weather {
-  background: rgba(30, 41, 59, 0.85);
-  border: 1px solid #3b82f6;
-  color: #93c5fd;
-}
-
-#btn-weather.wet {
-  background: rgba(29, 78, 216, 0.85);
-  border-color: #60a5fa;
-  color: #ffffff;
+.hud-pill.wet {
+  background: rgba(2, 132, 199, 0.85);
+  border-color: #38bdf8;
+  color: #e0f2fe;
 }
 
 /* ========================================================
-   CẢNH BÁO TRUNG TÂM
+   BANNER CẢNH BÁO TRUNG TÂM
    ======================================================== */
 #alert-banner {
   position: absolute;
-  top: 52px;
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  width: 92%;
-  max-width: 480px;
-  padding: 8px 14px;
-  border-radius: 12px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
   letter-spacing: 0.5px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  transition: all 0.25s ease;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease-in-out;
+  pointer-events: none;
+  max-width: 90vw;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
 #alert-banner.safe {
-  background: rgba(16, 185, 129, 0.90);
-  border: 2px solid #34d399;
+  background: rgba(16, 185, 129, 0.85);
   color: #ffffff;
+  border: 1px solid #34d399;
 }
 
 #alert-banner.warning {
-  background: rgba(245, 158, 11, 0.92);
-  border: 2px solid #fbbf24;
+  background: rgba(245, 158, 11, 0.9);
   color: #000000;
+  border: 1px solid #fde047;
 }
 
 #alert-banner.critical {
   background: rgba(239, 68, 68, 0.95);
-  border: 2px solid #f87171;
   color: #ffffff;
+  border: 2px solid #fee2e2;
+  animation: pulse-danger 0.5s infinite alternate;
+}
+
+#alert-banner.overspeed {
+  background: rgba(220, 38, 38, 0.95);
+  color: #ffffff;
+  border: 2px solid #fecaca;
   animation: pulse-danger 0.4s infinite alternate;
 }
 
 @keyframes pulse-danger {
-  0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 10px #ef4444; }
-  100% { transform: translateX(-50%) scale(1.03); box-shadow: 0 0 25px #ef4444; }
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.05); }
 }
 
 #alert-subtext {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 500;
-  margin-top: 2px;
   opacity: 0.9;
+  margin-top: 1px;
 }
 
 /* ========================================================
-   HUY HIỆU CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102, P.103a, CẤM GIỜ)
+   CẢNH BÁO ĐƯỜNG CẤM (P.101, P.102, P.103a)
    ======================================================== */
 .forbidden-alert-box {
   position: absolute;
-  top: 108px;
+  top: 58px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 15;
-  width: 90%;
-  max-width: 440px;
-  background: rgba(185, 28, 28, 0.96);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 2px solid #f87171;
+  z-index: 25;
+  background: linear-gradient(135deg, rgba(185, 28, 28, 0.95), rgba(127, 29, 29, 0.98));
+  border: 2px solid #ef4444;
   border-radius: 12px;
   padding: 8px 14px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 8px 30px rgba(220, 38, 38, 0.7);
-  animation: pulse-forbidden 0.4s infinite alternate;
+  gap: 10px;
+  max-width: 92vw;
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.7);
+  animation: shake 0.6s infinite alternate;
   cursor: pointer;
 }
 
@@ -274,49 +287,54 @@ html, body {
   display: none !important;
 }
 
-@keyframes pulse-forbidden {
-  0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 12px #dc2626; }
-  100% { transform: translateX(-50%) scale(1.03); box-shadow: 0 0 32px #ef4444; }
+@keyframes shake {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-51%) rotate(-1deg); }
+  75% { transform: translateX(-49%) rotate(1deg); }
+  100% { transform: translateX(-50%) rotate(0deg); }
 }
 
 .forbidden-icon {
-  font-size: 28px;
+  font-size: 26px;
+  line-height: 1;
 }
 
 .forbidden-title {
+  color: #ffffff;
   font-size: 13px;
   font-weight: 800;
-  color: #ffffff;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .forbidden-sub {
-  font-size: 11px;
+  color: #fecaca;
+  font-size: 10px;
   font-weight: 500;
-  color: #fee2e2;
   margin-top: 2px;
 }
 
 /* ========================================================
-   BẢNG TRỢ LÝ ĐỖ XE NGÀY CHẴN / LẺ (BIỂN P.131b & P.131c)
+   BẢNG TRỢ LÝ ĐỖ XE NGÀY CHẴN / NGÀY LẺ (P.131b & P.131c)
    ======================================================== */
 .parking-card-box {
   position: absolute;
-  top: 105px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 25;
-  width: 92%;
-  max-width: 430px;
-  background: rgba(15, 23, 42, 0.96);
+  z-index: 20;
+  background: rgba(15, 23, 42, 0.94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 2px solid #3b82f6;
+  border: 1.5px solid #38bdf8;
   border-radius: 14px;
   padding: 10px 14px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-  transition: all 0.25s ease;
+  max-width: 92vw;
+  width: 340px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
 }
 
 .parking-card-box.hidden {
@@ -327,19 +345,19 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
 }
 
 .parking-tag {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #38bdf8;
+  letter-spacing: 0.4px;
 }
 
 .parking-close {
-  cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   color: #94a3b8;
+  font-weight: 700;
   padding: 2px 6px;
 }
 
@@ -347,24 +365,24 @@ html, body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-bottom: 6px;
 }
 
 .rule-col {
+  background: rgba(30, 41, 59, 0.85);
   border-radius: 10px;
-  padding: 8px 4px;
+  padding: 8px 6px;
   text-align: center;
-  border: 2px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .rule-col.forbidden {
-  border-color: #ef4444;
-  background: rgba(69, 10, 10, 0.75);
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(69, 10, 10, 0.65);
 }
 
 .rule-col.allowed {
-  border-color: #10b981;
-  background: rgba(6, 78, 59, 0.75);
+  border-color: rgba(34, 197, 94, 0.6);
+  background: rgba(6, 78, 59, 0.65);
 }
 
 .sign-circle {
@@ -441,9 +459,18 @@ html, body {
 
 #demo-quick-bar {
   display: flex;
-  gap: 4px;
-  justify-content: center;
-  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-start;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  padding: 4px 2px;
+  scrollbar-width: none;
+}
+
+#demo-quick-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .demo-btn {
@@ -451,27 +478,29 @@ html, body {
   color: #93c5fd;
   border: 1px solid #3b82f6;
   border-radius: 14px;
-  padding: 3px 8px;
-  font-size: 10px;
+  padding: 5px 10px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .demo-btn.danger {
   border-color: #ef4444;
   color: #fca5a5;
-  background: rgba(69, 10, 10, 0.9);
+  background: rgba(69, 10, 10, 0.85);
 }
 
 .demo-btn.warn {
   border-color: #f59e0b;
   color: #fde68a;
-  background: rgba(69, 45, 10, 0.9);
+  background: rgba(69, 26, 3, 0.85);
 }
 
 .metrics-row {
   display: grid;
-  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
 }
 
@@ -481,22 +510,24 @@ html, body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
-  padding: 5px 6px;
+  padding: 6px 8px;
   text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .metric-label {
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 700;
   color: #94a3b8;
-  font-weight: 600;
-  text-transform: uppercase;
-  margin-bottom: 1px;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
 }
 
 .metric-value {
-  font-size: 21px;
-  font-weight: 800;
-  font-family: "Courier New", monospace, sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
   line-height: 22px;
 }
 
@@ -511,24 +542,28 @@ html, body {
 #val-distance { color: #4ade80; }
 #val-ttc { color: #f472b6; }
 
-/* THANH THƯỚC ĐO KHOẢNG CÁCH */
+/* ========================================================
+   THANH THƯỚC ĐO KHOẢNG CÁCH (CHẠM & KÉO DI CHUYỂN ĐƯỢC)
+   ======================================================== */
 #distance-bar-wrapper {
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
-  padding: 5px 10px;
+  padding: 6px 10px;
 }
 
 #bar-track {
   position: relative;
   width: 100%;
-  height: 12px;
+  height: 14px;
   background: #1e293b;
-  border-radius: 6px;
+  border-radius: 7px;
   overflow: visible;
-  margin: 4px 0;
+  margin: 6px 0;
+  cursor: pointer;
+  touch-action: none;
 }
 
 #bar-zone-critical {
@@ -536,15 +571,15 @@ html, body {
   left: 0;
   top: 0;
   height: 100%;
-  background: rgba(239, 68, 68, 0.8);
-  border-radius: 6px 0 0 6px;
+  background: rgba(239, 68, 68, 0.85);
+  border-radius: 7px 0 0 7px;
 }
 
 #bar-zone-warning {
   position: absolute;
   top: 0;
   height: 100%;
-  background: rgba(245, 158, 11, 0.8);
+  background: rgba(245, 158, 11, 0.85);
 }
 
 #bar-zone-safe {
@@ -552,15 +587,15 @@ html, body {
   top: 0;
   right: 0;
   height: 100%;
-  background: rgba(16, 185, 129, 0.8);
-  border-radius: 0 6px 6px 0;
+  background: rgba(16, 185, 129, 0.85);
+  border-radius: 0 7px 7px 0;
 }
 
 #bar-legal-marker {
   position: absolute;
   top: -5px;
   width: 3px;
-  height: 22px;
+  height: 24px;
   background: #ffffff;
   box-shadow: 0 0 6px #ffffff;
   transform: translateX(-50%);
@@ -569,19 +604,19 @@ html, body {
 
 #bar-car-pointer {
   position: absolute;
-  top: -7px;
-  width: 16px;
-  height: 26px;
+  top: -8px;
+  width: 18px;
+  height: 28px;
   transform: translateX(-50%);
   z-index: 4;
-  transition: left 0.15s ease-out;
+  transition: left 0.1s ease-out;
 }
 
 #bar-car-pointer::after {
   content: "🚗";
-  font-size: 14px;
+  font-size: 15px;
   position: absolute;
-  top: -3px;
+  top: -2px;
   left: -2px;
 }
 
@@ -594,7 +629,129 @@ html, body {
 }
 
 /* ========================================================
-   MÀN HÌNH BẮT ĐẦU
+   MODAL CHỌN TỐC ĐỘ GIỚI HẠN & BIỂN BÁO
+   ======================================================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  padding: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.modal-header p {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.speed-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btn-speed-pick {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  color: #f1f5f9;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.btn-speed-pick:active, .btn-speed-pick.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+  transform: scale(0.97);
+}
+
+.btn-speed-pick.auto-opt {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #1e3a8a, #065f46);
+  border: 1.5px solid #34d399;
+}
+
+.speed-num {
+  font-size: 20px;
+  font-weight: 900;
+  display: block;
+  color: #ffffff;
+}
+
+.speed-desc {
+  font-size: 10px;
+  color: #cbd5e1;
+  display: block;
+  margin-top: 2px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-custom-speed {
+  flex: 1;
+  background: #334155;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-close-modal {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 18px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ========================================================
+   MÀN HÌNH BẮT ĐẦU - CUỘN VUỐT THOẢI MÁI
    ======================================================== */
 #start-overlay {
   position: absolute;
@@ -609,9 +766,13 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 18px;
+  justify-content: flex-start;
+  padding: 24px 16px 60px 16px;
   text-align: center;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  box-sizing: border-box;
 }
 
 .start-btn {
@@ -626,6 +787,8 @@ html, body {
   cursor: pointer;
   box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5);
   transition: transform 0.15s ease;
+  flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .start-btn:active {
@@ -643,6 +806,7 @@ html, body {
   margin-top: 14px;
   line-height: 1.5;
   text-align: left;
+  flex-shrink: 0;
 }
 
 /* ========================================================
@@ -685,16 +849,5 @@ html, body {
     margin: 0 auto;
     left: 14px;
     right: 14px;
-    gap: 4px;
-  }
-  .metric-card {
-    padding: 3px 5px;
-  }
-  .metric-value {
-    font-size: 18px;
-    line-height: 18px;
-  }
-  #distance-bar-wrapper {
-    padding: 3px 8px;
   }
 }

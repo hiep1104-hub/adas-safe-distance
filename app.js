@@ -55,6 +55,9 @@ let lastDistance = 65.0;
 let lastFrameTime = performance.now();
 let currentTtc = 99.0;
 let currentAlertLevel = 'safe';
+let isDraggingDistanceBar = false;
+let isManualDistanceOverride = false;
+let manualOverrideTimeout = null;
 
 // Demo scenario state
 let demoTimer = 0;
@@ -97,21 +100,22 @@ async function startAdasSystem(demo = false) {
 
   // Cập nhật trạng thái ngày chẵn / lẻ hôm nay
   updateParkingCalendarUI();
+  initDistanceBarInteraction();
 
   const modeText = document.getElementById('mode-text');
   const modeIcon = document.getElementById('mode-icon');
   const demoBar = document.getElementById('demo-quick-bar');
 
   if (isDemoMode) {
-    modeText.textContent = "Thử Nghiệm";
-    modeIcon.textContent = "🎮";
+    if (modeText) modeText.textContent = "Thử Nghiệm";
+    if (modeIcon) modeIcon.textContent = "🎮";
     if (demoBar) demoBar.style.display = 'flex';
     applyOrientation();
     window.addEventListener('resize', applyOrientation);
     window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 250));
   } else {
-    modeText.textContent = "Camera Tự Động";
-    modeIcon.textContent = "📷";
+    if (modeText) modeText.textContent = "Camera Thật";
+    if (modeIcon) modeIcon.textContent = "📷";
     if (demoBar) demoBar.style.display = 'none';
 
     try {
@@ -133,8 +137,8 @@ async function startAdasSystem(demo = false) {
       console.warn("Lỗi camera thật:", err);
       alert("Không mở được camera sau (" + err.message + "). Hệ thống chuyển sang Chế độ Mô phỏng!");
       isDemoMode = true;
-      modeText.textContent = "Thử Nghiệm";
-      modeIcon.textContent = "🎮";
+      if (modeText) modeText.textContent = "Thử Nghiệm";
+      if (modeIcon) modeIcon.textContent = "🎮";
       if (demoBar) demoBar.style.display = 'flex';
       applyOrientation();
     }
@@ -283,13 +287,13 @@ function initGpsTracker() {
     navigator.geolocation.watchPosition(
       (pos) => {
         isGpsActive = true;
-        gpsDot.textContent = "🟢";
+        if (gpsDot) gpsDot.textContent = "🟢";
         const speedMps = pos.coords.speed;
         if (speedMps !== null && speedMps >= 0) {
           currentSpeedKmh = Math.round(speedMps * 3.6);
-          gpsText.textContent = `GPS: ${currentSpeedKmh}`;
+          if (gpsText) gpsText.textContent = `GPS: ${currentSpeedKmh}`;
         } else {
-          gpsText.textContent = `GPS: OK`;
+          if (gpsText) gpsText.textContent = `GPS: OK`;
         }
 
         lastGpsLat = pos.coords.latitude;
@@ -314,13 +318,13 @@ function initGpsTracker() {
       },
       (err) => {
         isGpsActive = false;
-        gpsDot.textContent = "🟡";
-        gpsText.textContent = `GPS: Tự động`;
+        if (gpsDot) gpsDot.textContent = "🟡";
+        if (gpsText) gpsText.textContent = `GPS: Tự động`;
       },
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
     );
   } else {
-    gpsText.textContent = "GPS Tự động";
+    if (gpsText) gpsText.textContent = "GPS Tự động";
   }
 }
 
@@ -651,7 +655,9 @@ async function processFrame(now) {
     demoTimer += dt;
     const cycle = demoTimer % 28.0;
 
-    if (cycle < 6.0) {
+    if (isDraggingDistanceBar || isManualDistanceOverride) {
+      rawDistance = currentLeadDistance;
+    } else if (cycle < 6.0) {
       currentSpeedKmh = 80.0;
       currentSpeedLimit = 80.0;
       speedLimitSource = "Tự động";
@@ -1161,6 +1167,136 @@ function updateHudElements(assessment) {
 }
 
 // ==========================================
+// MODAL CHỌN TỐC ĐỘ GIỚI HẠN & DI CHUYỂN LỰA CHỌN
+// ==========================================
+function openSpeedLimitModal() {
+  const modal = document.getElementById('speed-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSpeedLimitModal(event) {
+  if (event && event.target && event.target.closest && event.target.closest('.modal-box') && event.target !== event.currentTarget) {
+    return;
+  }
+  const modal = document.getElementById('speed-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setSpeedLimit(val) {
+  const modal = document.getElementById('speed-modal');
+  if (modal) modal.style.display = 'none';
+
+  if (val === 'auto') {
+    currentSpeedLimit = 80.0;
+    speedLimitSource = "Tự động (AI/GPS)";
+    const lbl = document.getElementById('speed-source-label');
+    const num = document.getElementById('limit-number');
+    if (lbl) lbl.textContent = "TỰ ĐỘNG";
+    if (num) num.textContent = "80";
+    speakText("Đã kích hoạt chế độ nhận diện tốc độ tự động theo AI và GPS");
+  } else {
+    currentSpeedLimit = Number(val);
+    speedLimitSource = `Thủ công (${val} km/h)`;
+    const lbl = document.getElementById('speed-source-label');
+    const num = document.getElementById('limit-number');
+    if (lbl) lbl.textContent = `${val} KM/H`;
+    if (num) num.textContent = `${val}`;
+    speakText(`Đã cài đặt giới hạn tốc độ ${val} ki lô mét một giờ`);
+  }
+  updateSpeedUI();
+  updateSpeedSignUI();
+}
+
+function customSpeedLimitPrompt() {
+  const input = prompt("Nhập tốc độ tối đa cho phép của tuyến đường (km/h):", currentSpeedLimit);
+  if (input !== null) {
+    const val = parseFloat(input);
+    if (!isNaN(val) && val >= 20 && val <= 140) {
+      setSpeedLimit(Math.round(val));
+    } else {
+      alert("Vui lòng nhập tốc độ hợp lệ từ 20 đến 140 km/h");
+    }
+  }
+}
+
+function promptManualSpeed() {
+  const input = prompt("Nhập vận tốc xe di chuyển (km/h):", Math.round(currentSpeedKmh));
+  if (input !== null) {
+    const val = parseFloat(input);
+    if (!isNaN(val) && val >= 0 && val <= 250) {
+      currentSpeedKmh = val;
+      updateSpeedUI();
+      speakText(`Vận tốc xe ${Math.round(val)} ki lô mét một giờ`);
+    }
+  }
+}
+
+function promptManualDistance() {
+  const input = prompt("Nhập khoảng cách xe trước muốn kiểm tra (mét):", Math.round(currentLeadDistance));
+  if (input !== null) {
+    const val = parseFloat(input);
+    if (!isNaN(val) && val >= 1 && val <= 200) {
+      currentLeadDistance = val;
+      smoothedDistance = val;
+      isManualDistanceOverride = true;
+      clearTimeout(manualOverrideTimeout);
+      manualOverrideTimeout = setTimeout(() => { isManualDistanceOverride = false; }, 15000);
+      const assessment = evaluateVietnamLegalStandard(currentSpeedKmh, currentLeadDistance, weatherMode);
+      updateHudElements(assessment);
+      speakText(`Khoảng cách ${Math.round(val)} mét`);
+    }
+  }
+}
+
+// ==========================================
+// TƯƠNG TÁC CHẠM & KÉO THANH KHOẢNG CÁCH (SLIDER DRAG)
+// ==========================================
+function initDistanceBarInteraction() {
+  const track = document.getElementById('bar-track');
+  if (!track) return;
+
+  function updateFromPointer(clientX) {
+    const rect = track.getBoundingClientRect();
+    let frac = (clientX - rect.left) / rect.width;
+    frac = Math.max(0.04, Math.min(1.0, frac));
+    const dist = Math.round(frac * 120); // 5m đến 120m
+    currentLeadDistance = dist;
+    smoothedDistance = dist;
+    isManualDistanceOverride = true;
+    clearTimeout(manualOverrideTimeout);
+    manualOverrideTimeout = setTimeout(() => { isManualDistanceOverride = false; }, 15000);
+
+    const assessment = evaluateVietnamLegalStandard(currentSpeedKmh, currentLeadDistance, weatherMode);
+    updateHudElements(assessment);
+  }
+
+  // Pointer & Touch Events
+  track.addEventListener('pointerdown', (e) => {
+    isDraggingDistanceBar = true;
+    updateFromPointer(e.clientX);
+    try { track.setPointerCapture(e.pointerId); } catch(err){}
+  });
+
+  track.addEventListener('pointermove', (e) => {
+    if (isDraggingDistanceBar) {
+      updateFromPointer(e.clientX);
+    }
+  });
+
+  track.addEventListener('pointerup', (e) => {
+    if (isDraggingDistanceBar) {
+      isDraggingDistanceBar = false;
+      try { track.releasePointerCapture(e.pointerId); } catch(err){}
+      speakText(`Cự ly ${Math.round(currentLeadDistance)} mét`);
+    }
+  });
+
+  track.addEventListener('pointercancel', () => {
+    isDraggingDistanceBar = false;
+  });
+}
+
+// ==========================================
 // CÁC NÚT THỬ NGHIỆM NHANH TRONG DEMO
 // ==========================================
 function triggerSpeedingTest() {
@@ -1186,6 +1322,19 @@ function triggerParkingAdvisorTest() {
   toggleParkingAdvisor();
 }
 
+function triggerBrakeTest() {
+  currentLeadDistance = 15.0;
+  smoothedDistance = 15.0;
+  isManualDistanceOverride = true;
+  demoBraking = true;
+  demoTimer = performance.now();
+  clearTimeout(manualOverrideTimeout);
+  manualOverrideTimeout = setTimeout(() => { isManualDistanceOverride = false; demoBraking = false; }, 8000);
+  const assessment = evaluateVietnamLegalStandard(currentSpeedKmh, currentLeadDistance, weatherMode);
+  updateHudElements(assessment);
+  speakVoice("Nguy hiểm! Xe trước phanh gấp! Đề nghị giảm tốc độ ngay!");
+}
+
 function toggleWeather() {
   const btn = document.getElementById('btn-weather');
   const icon = document.getElementById('weather-icon');
@@ -1193,20 +1342,21 @@ function toggleWeather() {
 
   if (weatherMode === 'dry') {
     weatherMode = 'wet';
-    btn.classList.add('wet');
-    icon.textContent = '🌧️';
-    text.textContent = 'Mưa (+40%)';
+    if (btn) btn.classList.add('wet');
+    if (icon) icon.textContent = '🌧️';
+    if (text) text.textContent = 'Mưa (+40%)';
   } else {
     weatherMode = 'dry';
-    btn.classList.remove('wet');
-    icon.textContent = '☀️';
-    text.textContent = 'Khô';
+    if (btn) btn.classList.remove('wet');
+    if (icon) icon.textContent = '☀️';
+    if (text) text.textContent = 'Khô';
   }
 }
 
 function toggleAudio() {
   audioEnabled = !audioEnabled;
-  document.getElementById('audio-icon').textContent = audioEnabled ? '🔊' : '🔇';
+  const icon = document.getElementById('audio-icon');
+  if (icon) icon.textContent = audioEnabled ? '🔊' : '🔇';
 }
 
 function toggleDemoMode() {
@@ -1216,15 +1366,23 @@ function toggleDemoMode() {
   const demoBar = document.getElementById('demo-quick-bar');
 
   if (isDemoMode) {
-    modeText.textContent = "Thử Nghiệm";
-    modeIcon.textContent = "🎮";
+    if (modeText) modeText.textContent = "Thử Nghiệm";
+    if (modeIcon) modeIcon.textContent = "🎮";
     if (demoBar) demoBar.style.display = 'flex';
+    speakText("Đã chuyển sang chế độ thử nghiệm");
   } else {
-    modeText.textContent = "Camera Tự Động";
-    modeIcon.textContent = "📷";
+    if (modeText) modeText.textContent = "Camera Thật";
+    if (modeIcon) modeIcon.textContent = "📷";
     if (demoBar) demoBar.style.display = 'none';
-    if (!videoEl.srcObject) {
+    speakText("Đã chuyển sang chế độ Camera thật");
+    if (!videoEl || !videoEl.srcObject) {
       startAdasSystem(false);
     }
   }
 }
+
+// Khởi tạo các tương tác khi trang tải xong
+window.addEventListener('DOMContentLoaded', () => {
+  updateParkingCalendarUI();
+  initDistanceBarInteraction();
+});
