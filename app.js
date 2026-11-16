@@ -72,39 +72,51 @@ let cipvCandidateFrames = 0;
 let lastSpokenWarningTime = 0;
 let lastSpokenCriticalTime = 0;
 
-// Bộ lọc Kalman 1D theo dõi khoảng cách Z và vận tốc tương đối vRel
+// Bộ lọc Kalman Kinematic theo dõi khoảng cách Z và vận tốc tương đối vRel
 class KalmanDistanceFilter {
   constructor(initialZ) {
     this.z = initialZ;        // Khoảng cách ước tính (m)
     this.v = 0.0;             // Vận tốc tương đối (m/s)
-    this.p = [[4.0, 0], [0, 9.0]];
-    this.q = [[0.2, 0], [0, 0.8]];
+    this.p00 = 4.0;
+    this.p01 = 0.0;
+    this.p10 = 0.0;
+    this.p11 = 9.0;
+    this.q00 = 0.5;
+    this.q11 = 2.0;
     this.r = 2.5;
   }
 
   update(measuredZ, dt) {
     if (dt <= 0 || isNaN(dt)) dt = 0.033;
-    // 1. Dự đoán (Predict)
-    this.z = this.z + this.v * dt;
-    this.p[0][0] += this.q[0][0] * dt;
-    this.p[1][1] += this.q[1][1] * dt;
 
-    // Loại bỏ nhiễu nhảy số cực đoan (Outlier Rejection)
+    // Loại bỏ ngoại lai cực đoan (Outlier Rejection > 22m)
     if (Math.abs(measuredZ - this.z) > 22.0) {
       return this.z;
     }
 
-    // 2. Cập nhật (Update)
-    const y = measuredZ - this.z;
-    const s = this.p[0][0] + this.r;
-    const k0 = this.p[0][0] / s;
-    const k1 = this.p[1][0] / s;
+    // 1. Dự đoán trạng thái (State Prediction: x = F * x)
+    this.z += this.v * dt;
+
+    // Dự đoán hiệp phương sai sai số (Covariance Prediction: P = F * P * F^T + Q * dt)
+    const p00_pred = this.p00 + dt * (this.p10 + this.p01) + dt * dt * this.p11 + this.q00 * dt;
+    const p01_pred = this.p01 + dt * this.p11;
+    const p10_pred = this.p10 + dt * this.p11;
+    const p11_pred = this.p11 + this.q11 * dt;
+
+    // 2. Cập nhật đo lường (Measurement Update with H = [1, 0])
+    const y = measuredZ - this.z; // Sai số đo
+    const s = p00_pred + this.r;  // Phần dư hiệp phương sai
+    const k0 = p00_pred / s;      // Kalman gain cho z
+    const k1 = p10_pred / s;      // Kalman gain cho v
 
     this.z += k0 * y;
     this.v += k1 * y;
 
-    this.p[0][0] *= (1 - k0);
-    this.p[1][1] *= (1 - k0);
+    // Cập nhật ma trận P: P = (I - K * H) * P
+    this.p00 = (1.0 - k0) * p00_pred;
+    this.p01 = (1.0 - k0) * p01_pred;
+    this.p10 = p10_pred - k1 * p00_pred;
+    this.p11 = p11_pred - k1 * p01_pred;
 
     return Math.max(1.5, Math.min(130.0, this.z));
   }
@@ -1797,7 +1809,37 @@ function toggleDemoMode() {
 }
 
 // Khởi tạo các tương tác khi trang tải xong
-window.addEventListener('DOMContentLoaded', () => {
-  updateParkingCalendarUI();
-  initDistanceBarInteraction();
-});
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('DOMContentLoaded', () => {
+    updateParkingCalendarUI();
+    initDistanceBarInteraction();
+  });
+}
+
+// Xuất module cho môi trường kiểm thử tự động (Unit / E2E Tests)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    KalmanDistanceFilter,
+    updateCipvSelection,
+    selectLeadVehicle,
+    estimateOpticalDistance,
+    evaluateVietnamLegalStandard,
+    triggerCombinedAlerts,
+    autoScanTrafficSigns,
+    triggerForbiddenAlert,
+    dismissForbiddenAlert,
+    getActiveTracks: () => activeTracks,
+    setActiveTracks: (tr) => { activeTracks = tr; },
+    getLockedCipvId: () => lockedCipvId,
+    setLockedCipvId: (id) => { lockedCipvId = id; },
+    getCipvCandidateId: () => cipvCandidateId,
+    getCipvCandidateFrames: () => cipvCandidateFrames,
+    getIsForbiddenRoadDetected: () => isForbiddenRoadDetected,
+    setIsForbiddenRoadDetected: (v) => { isForbiddenRoadDetected = v; },
+    getSignCandidateCount: () => signCandidateCount,
+    setSignCandidateCount: (v) => { signCandidateCount = v; },
+    setSignCtx: (ctx) => { signCtx = ctx; },
+    setVideoEl: (el) => { videoEl = el; },
+    setLastSignDetectionTime: (t) => { lastSignDetectionTime = t; }
+  };
+}
