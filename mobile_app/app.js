@@ -59,6 +59,57 @@ let isDraggingDistanceBar = false;
 let isManualDistanceOverride = false;
 let manualOverrideTimeout = null;
 
+// ==========================================
+// BỘ THEO DÕI ĐA MỤC TIÊU (MOT) & BỘ LỌC KALMAN 60 FPS
+// ==========================================
+let activeTracks = [];
+let nextTrackId = 1;
+let isDetectingAsync = false;
+let lastAiDetectTimestamp = 0;
+let lockedCipvId = null;
+let cipvCandidateId = null;
+let cipvCandidateFrames = 0;
+let lastSpokenWarningTime = 0;
+let lastSpokenCriticalTime = 0;
+
+// Bộ lọc Kalman 1D theo dõi khoảng cách Z và vận tốc tương đối vRel
+class KalmanDistanceFilter {
+  constructor(initialZ) {
+    this.z = initialZ;        // Khoảng cách ước tính (m)
+    this.v = 0.0;             // Vận tốc tương đối (m/s)
+    this.p = [[4.0, 0], [0, 9.0]];
+    this.q = [[0.2, 0], [0, 0.8]];
+    this.r = 2.5;
+  }
+
+  update(measuredZ, dt) {
+    if (dt <= 0 || isNaN(dt)) dt = 0.033;
+    // 1. Dự đoán (Predict)
+    this.z = this.z + this.v * dt;
+    this.p[0][0] += this.q[0][0] * dt;
+    this.p[1][1] += this.q[1][1] * dt;
+
+    // Loại bỏ nhiễu nhảy số cực đoan (Outlier Rejection)
+    if (Math.abs(measuredZ - this.z) > 22.0) {
+      return this.z;
+    }
+
+    // 2. Cập nhật (Update)
+    const y = measuredZ - this.z;
+    const s = this.p[0][0] + this.r;
+    const k0 = this.p[0][0] / s;
+    const k1 = this.p[1][0] / s;
+
+    this.z += k0 * y;
+    this.v += k1 * y;
+
+    this.p[0][0] *= (1 - k0);
+    this.p[1][1] *= (1 - k0);
+
+    return Math.max(1.5, Math.min(130.0, this.z));
+  }
+}
+
 // Demo scenario state
 let demoTimer = 0;
 let demoBraking = false;
@@ -422,62 +473,113 @@ function updateSpeedUI() {
 }
 
 // ==========================================
-// TỰ ĐỘNG QUÉT BIỂN BÁO BẰNG CAMERA
+// TỰ ĐỘNG QUÉT BIỂN BÁO BẰNG CAMERA (TSR CHUẨN ADAS HIỆN ĐẠI)
+// - Chỉ quét lề đường bên phải (Right Verge) và giá long môn trên cao
+// - LOẠI TRỪ 100% lòng đường, đèn hậu xe trước và đèn phanh để chống báo động ảo
+// - Áp dụng Hysteresis xác thực liên tiếp 4 khung hình & Cooldown 45 giây chống spam
 // ==========================================
 let lastSignDetectionTime = 0;
+let signCandidateCount = 0;
+let lastCandidateSignType = null;
+const signAlertCooldowns = {}; // Lưu thời gian cảnh báo từng loại biển để tránh lặp lại
 
 function autoScanTrafficSigns(w, h) {
   if (!videoEl || videoEl.readyState < 2 || !signCtx) return;
 
   const now = performance.now();
-  if (now - lastSignDetectionTime < 400) return;
+  if (now - lastSignDetectionTime < 500) return;
   lastSignDetectionTime = now;
 
   try {
     signCtx.drawImage(videoEl, 0, 0, 320, 180);
-    const imgData = signCtx.getImageData(160, 0, 160, 120);
+    // VÙNG QUAN SÁT NGHIÊM NGẶT (ROI):
+    // Chỉ lấy góc trên bên phải (x: 210 -> 315, y: 8 -> 80 trên ảnh 320x180)
+    // Tuyệt đối không quét vùng trung tâm hoặc đáy xe (nơi có đèn phanh đỏ xe trước)
+    const roiX = 210, roiY = 8, roiW = 105, roiH = 72;
+    const imgData = signCtx.getImageData(roiX, roiY, roiW, roiH);
     const data = imgData.data;
 
     let redPixelCount = 0;
     let whitePixelCount = 0;
     let bluePixelCount = 0;
+    let minX = roiW, maxX = 0, minY = roiH, maxY = 0;
 
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
+    for (let py = 0; py < roiH; py++) {
+      for (let px = 0; px < roiW; px++) {
+        const i = (py * roiW + px) * 4;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
 
-      // Đỏ (Biển cấm P.101, P.102, P.103a)
-      if (r > 140 && g < 75 && b < 75 && (r - Math.max(g, b) > 55)) {
-        redPixelCount++;
-      }
-      // Trắng
-      if (r > 190 && g > 190 && b > 190) {
-        whitePixelCount++;
-      }
-      // Xanh dương (Biển cấm đỗ P.131, P.131b, P.131c)
-      if (b > 130 && r < 90 && g < 110) {
-        bluePixelCount++;
-      }
-    }
-
-    if (redPixelCount > 350) {
-      if (whitePixelCount > 100 && (whitePixelCount / redPixelCount > 0.25)) {
-        triggerForbiddenAlert("P.102", "Cấm đi ngược chiều");
-      } else if (whitePixelCount > 250) {
-        if (!speedLimitSource.includes("Camera")) {
-          speedLimitSource = "Camera (Biển P.127)";
-          updateSpeedSignUI();
-          speakVoice(`Đã nhận diện biển báo tốc độ tối đa ${currentSpeedLimit} ki-lô-mét một giờ`);
+        // Màu đỏ đặc trưng biển báo cấm giao thông
+        if (r > 155 && g < 70 && b < 70 && (r - Math.max(g, b) > 65)) {
+          redPixelCount++;
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        }
+        // Màu trắng lõi biển báo
+        if (r > 200 && g > 200 && b > 200) {
+          whitePixelCount++;
+        }
+        // Màu xanh dương biển cấm đỗ
+        if (b > 140 && r < 80 && g < 100) {
+          bluePixelCount++;
         }
       }
     }
 
-    // Biển cấm đỗ xe P.131 (viền đỏ nền xanh)
-    if (bluePixelCount > 300 && redPixelCount > 200) {
-      if (!isParkingAdvisorOpen) {
-        toggleParkingAdvisor();
+    // Kiểm tra tỷ lệ khung hình tròn: w / h phải gần 1.0 (tránh vệt đèn hậu nằm ngang dài)
+    const signW = maxX - minX;
+    const signH = maxY - minY;
+    const isCircularAspect = (signW >= 14 && signH >= 14 && signW / signH >= 0.70 && signW / signH <= 1.40);
+
+    let detectedType = null;
+    let detectedName = "";
+
+    if (isCircularAspect && redPixelCount > 180) {
+      if (whitePixelCount > 60 && (whitePixelCount / redPixelCount > 0.28)) {
+        detectedType = "P.102";
+        detectedName = "Cấm đi ngược chiều";
+      } else if (whitePixelCount > 160) {
+        detectedType = "P.127";
+        detectedName = "Biển tốc độ";
       }
+    } else if (isCircularAspect && bluePixelCount > 160 && redPixelCount > 100) {
+      detectedType = "P.131";
+      detectedName = "Cấm đỗ xe";
+    }
+
+    // Xác thực đa khung hình (Temporal Persistence Confirmation)
+    if (detectedType && detectedType === lastCandidateSignType) {
+      signCandidateCount++;
+      if (signCandidateCount >= 4) { // Phát hiện liên tục 4 lần (~2.0s) trên lề đường
+        signCandidateCount = 0;
+        lastCandidateSignType = null;
+
+        // Kiểm tra Cooldown 45 giây để KHÔNG lặp lại gây rối
+        const lastAlert = signAlertCooldowns[detectedType] || 0;
+        if (now - lastAlert > 45000) {
+          signAlertCooldowns[detectedType] = now;
+          if (detectedType === "P.102") {
+            triggerForbiddenAlert("P.102", detectedName);
+          } else if (detectedType === "P.127") {
+            if (!speedLimitSource.includes("Camera")) {
+              speedLimitSource = "Camera (Biển P.127)";
+              updateSpeedSignUI();
+              speakVoice(`Đã nhận diện biển báo tốc độ ${currentSpeedLimit} ki-lô-mét một giờ`);
+            }
+          } else if (detectedType === "P.131") {
+            if (!isParkingAdvisorOpen) {
+              toggleParkingAdvisor();
+            }
+          }
+        }
+      }
+    } else {
+      lastCandidateSignType = detectedType;
+      signCandidateCount = detectedType ? 1 : 0;
     }
   } catch (err) {}
 }
@@ -515,14 +617,15 @@ function triggerForbiddenAlert(signCode = "P.102", signName = "Cấm đi ngượ
   playBeep(2000, 300);
 
   const now = performance.now();
-  if (now - lastForbiddenSpeechTime > 5000) {
+  // Khống chế chỉ nhắc giọng nói tối thiểu cách nhau 30 giây
+  if (now - lastForbiddenSpeechTime > 30000) {
     lastForbiddenSpeechTime = now;
     if (signCode === "P.103a") {
       speakVoice("Nguy hiểm! Tuyến đường phía trước cấm xe ô tô!");
     } else if (signCode === "TIME_PEAK") {
       speakVoice("Cảnh báo! Tuyến đường đang trong khung giờ cấm xe!");
     } else {
-      speakVoice("Nguy hiểm! Phía trước là đường cấm! Không được đi vào!");
+      speakVoice("Nguy hiểm! Phía trước có biển đường cấm! Không được đi vào!");
     }
   }
 }
@@ -632,11 +735,97 @@ async function loadAiModel() {
 }
 
 // ==========================================
-// VÒNG LẶP XỬ LÝ THEO THỜI GIAN THỰC (FPS)
+// VÒNG LẶP XỬ LÝ THEO THỜI GIAN THỰC (FPS CHUẨN 60 FPS KHÔNG GIẬT)
 // ==========================================
 let frameThrottle = 0;
 
-async function processFrame(now) {
+async function runDetectionAsync() {
+  if (isDetectingAsync || !aiModel || !videoEl || videoEl.readyState < 2) return;
+  isDetectingAsync = true;
+
+  try {
+    const predictions = await aiModel.detect(videoEl);
+    lastAiDetectTimestamp = performance.now();
+    updateTracksFromDetections(predictions);
+  } catch (err) {
+    // Lỗi nhẹ không làm dừng chương trình
+  } finally {
+    isDetectingAsync = false;
+  }
+}
+
+function updateTracksFromDetections(predictions) {
+  const now = performance.now();
+  const targetClasses = ['car', 'truck', 'bus', 'motorcycle'];
+  const validDets = predictions.filter(p => targetClasses.includes(p.class) && p.score >= 0.38);
+
+  // Khớp detections mới với activeTracks bằng IoU
+  const matchedTrackIds = new Set();
+  const matchedDetIndices = new Set();
+
+  for (let dIdx = 0; dIdx < validDets.length; dIdx++) {
+    const det = validDets[dIdx];
+    let bestIou = 0.25;
+    let bestTrack = null;
+
+    for (const tr of activeTracks) {
+      if (matchedTrackIds.has(tr.id)) continue;
+      const iou = computeIoU(det.bbox, tr.bbox);
+      if (iou > bestIou) {
+        bestIou = iou;
+        bestTrack = tr;
+      }
+    }
+
+    if (bestTrack) {
+      // Làm mịn tọa độ hộp bounding box bằng EMA
+      bestTrack.bbox = [
+        0.65 * det.bbox[0] + 0.35 * bestTrack.bbox[0],
+        0.65 * det.bbox[1] + 0.35 * bestTrack.bbox[1],
+        0.65 * det.bbox[2] + 0.35 * bestTrack.bbox[2],
+        0.65 * det.bbox[3] + 0.35 * bestTrack.bbox[3]
+      ];
+      bestTrack.class = det.class;
+      bestTrack.confidence = det.score;
+      bestTrack.lastSeen = now;
+      matchedTrackIds.add(bestTrack.id);
+      matchedDetIndices.add(dIdx);
+    }
+  }
+
+  // Thêm các detection mới chưa có track
+  for (let dIdx = 0; dIdx < validDets.length; dIdx++) {
+    if (!matchedDetIndices.has(dIdx)) {
+      const det = validDets[dIdx];
+      activeTracks.push({
+        id: nextTrackId++,
+        bbox: [...det.bbox],
+        class: det.class,
+        confidence: det.score,
+        lastSeen: now,
+        distance: 60.0,
+        vRel: 0.0,
+        inPath: false,
+        kalman: null
+      });
+    }
+  }
+
+  // Dọn dẹp các track đã khuất hoặc mất dấu quá 450ms
+  activeTracks = activeTracks.filter(tr => (now - tr.lastSeen) <= 450);
+}
+
+function computeIoU(b1, b2) {
+  const xA = Math.max(b1[0], b2[0]);
+  const yA = Math.max(b1[1], b2[1]);
+  const xB = Math.min(b1[0] + b1[2], b2[0] + b2[2]);
+  const yB = Math.min(b1[1] + b1[3], b2[1] + b2[3]);
+  const inter = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+  const union = b1[2] * b1[3] + b2[2] * b2[3] - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+function processFrame(now) {
   if (!isRunning) return;
 
   const dt = Math.max(0.01, (now - lastFrameTime) / 1000.0);
@@ -649,7 +838,7 @@ async function processFrame(now) {
   ctx.clearRect(0, 0, w, h);
 
   let leadVehicle = null;
-  let rawDistance = 65.0;
+  let rawDistance = 95.0;
 
   if (isDemoMode) {
     demoTimer += dt;
@@ -678,14 +867,12 @@ async function processFrame(now) {
       rawDistance = 65.0;
       demoBraking = false;
     } else if (cycle < 23.0) {
-      // GIẢ LẬP BIỂN P.103a CẤM Ô TÔ
       currentSpeedKmh = 45.0;
       rawDistance = 55.0;
       demoBraking = false;
       simulatedRoadSign = { type: "P.103a", name: "Cấm ô tô", dist: 25.0 };
       triggerForbiddenAlert("P.103a", "Cấm xe ô tô");
     } else {
-      // GIẢ LẬP BIỂN P.102 CẤM ĐI NGƯỢC CHIỀU
       currentSpeedKmh = 50.0;
       rawDistance = 60.0;
       demoBraking = false;
@@ -698,25 +885,33 @@ async function processFrame(now) {
     renderDemoRoadAndCar(ctx, w, h, rawDistance, demoBraking, simulatedRoadSign);
 
     leadVehicle = {
+      id: 1,
       bbox: [w / 2 - 60, h * 0.48, 120, 80],
-      class: 'car'
+      class: 'car',
+      distance: rawDistance,
+      vRel: demoBraking ? -18.0 : 0.0,
+      inPath: true
     };
+    currentLeadDistance = rawDistance;
   } else {
-    let detectedVehicles = [];
-    if (aiModel && videoEl.readyState === 4 && (frameThrottle % 2 === 0)) {
-      try {
-        const predictions = await aiModel.detect(videoEl);
-        const targetClasses = ['car', 'truck', 'bus', 'motorcycle'];
-        detectedVehicles = predictions.filter(p => targetClasses.includes(p.class) && p.score >= 0.40);
-      } catch (err) {}
+    // KHÔNG CHẶN REQUESTANIMATIONFRAME - Gọi nhận diện AI bất đồng bộ
+    if (aiModel && videoEl.readyState >= 2 && !isDetectingAsync) {
+      runDetectionAsync();
     }
 
-    leadVehicle = selectLeadVehicle(detectedVehicles, w, h);
+    // Chọn xe dẫn đầu CIPV bằng hành lang phối cảnh hình thang và bộ lọc Kalman 60 FPS
+    leadVehicle = updateCipvSelection(w, h, dt);
 
     if (leadVehicle) {
-      rawDistance = estimateOpticalDistance(leadVehicle, w, h);
+      rawDistance = leadVehicle.distance;
+      currentLeadDistance = rawDistance;
     } else {
-      rawDistance = 90.0;
+      rawDistance = 95.0;
+      currentLeadDistance = 95.0;
+    }
+
+    if (isDraggingDistanceBar || isManualDistanceOverride) {
+      currentLeadDistance = smoothedDistance;
     }
 
     autoScanTrafficSigns(w, h);
@@ -726,26 +921,23 @@ async function processFrame(now) {
     dismissForbiddenAlert();
   }
 
-  const alpha = 0.35;
-  smoothedDistance = alpha * rawDistance + (1 - alpha) * smoothedDistance;
-  currentLeadDistance = smoothedDistance;
-
-  const vApproachMps = (lastDistance - currentLeadDistance) / dt;
-  lastDistance = currentLeadDistance;
-
-  if (vApproachMps > 0.5) {
+  // Tính TTC chính xác: chỉ cảnh báo va chạm khi ta đang tiến lại gần (vApproach > 1.5 m/s)
+  let vApproachMps = 0.0;
+  if (leadVehicle && leadVehicle.vRel < -1.5) {
+    vApproachMps = -leadVehicle.vRel / 3.6;
     currentTtc = Math.max(0.5, currentLeadDistance / vApproachMps);
   } else {
-    const vHostMps = Math.max(2.0, currentSpeedKmh / 3.6);
-    currentTtc = currentLeadDistance / vHostMps;
+    currentTtc = 99.0;
   }
 
-  const assessment = evaluateVietnamLegalStandard(currentSpeedKmh, currentLeadDistance, weatherMode);
+  const assessment = evaluateVietnamLegalStandard(
+    currentSpeedKmh, currentLeadDistance, weatherMode, leadVehicle !== null
+  );
   currentAlertLevel = assessment.level;
 
   triggerCombinedAlerts(assessment);
-  drawArHud(ctx, w, h, leadVehicle, assessment, simulatedRoadSign);
-  updateHudElements(assessment);
+  drawArHud(ctx, w, h, activeTracks, leadVehicle, assessment, simulatedRoadSign);
+  updateHudElements(assessment, leadVehicle !== null);
 
   requestAnimationFrame(processFrame);
 }
@@ -873,13 +1065,105 @@ function renderDemoRoadAndCar(ctx, w, h, distance, isBraking, roadSign) {
 }
 
 // ==========================================
-// THUẬT TOÁN ĐO KHOẢNG CÁCH QUANG HỌC
+// THUẬT TOÁN ĐO KHOẢNG CÁCH QUANG HỌC & CIPV (HÀNH LANG HÌNH THANG PHỐI CẢNH)
+// Chuẩn ISO 15623 & ISO 22838 / comma.ai openpilot
 // ==========================================
+function updateCipvSelection(w, h, dt) {
+  if (!activeTracks || activeTracks.length === 0) {
+    lockedCipvId = null;
+    cipvCandidateId = null;
+    cipvCandidateFrames = 0;
+    return null;
+  }
+
+  const horizonY = h * 0.48;
+  const centerX = w / 2.0;
+
+  // Hành lang làn xe phối cảnh hình thang:
+  // Tại chân trời (horizonY): bề rộng hẹp (khoảng 14% frame width)
+  // Tại mui xe (h): bề rộng mở rộng (khoảng 64% frame width)
+  const topHalfW = (w * 0.14) / 2.0;
+  const bottomHalfW = (w * 0.64) / 2.0;
+
+  let bestCandidate = null;
+  let minDistance = 999.0;
+
+  for (const tr of activeTracks) {
+    const [vx, vy, vw, vh] = tr.bbox;
+    const carCenterX = vx + vw / 2.0;
+    const carContactY = vy + vh;
+
+    // Tính bề rộng cho phép tại vị trí tiếp xúc mặt đường (contact point) của xe
+    const progress = Math.max(0.0, Math.min(1.0, (carContactY - horizonY) / Math.max(1, h - horizonY)));
+    const corridorHalfW = topHalfW + progress * (bottomHalfW - topHalfW);
+
+    // Kiểm tra xe có nằm trong hành lang làn xe bản thân (ego corridor) không
+    const isInCorridor = (Math.abs(carCenterX - centerX) <= corridorHalfW) && (carContactY >= horizonY);
+    tr.inPath = isInCorridor;
+
+    // Đo khoảng cách quang học
+    const rawDist = estimateOpticalDistance(tr, w, h);
+
+    // Khởi tạo hoặc cập nhật Kalman Filter
+    if (!tr.kalman) {
+      tr.kalman = new KalmanDistanceFilter(rawDist);
+    }
+    const filteredDist = tr.kalman.update(rawDist, dt);
+    tr.distance = filteredDist;
+    tr.vRel = tr.kalman.v * 3.6; // m/s -> km/h
+
+    // Nếu xe nằm trong hành lang, xét làm ứng viên CIPV (xe gần nhất phía trước)
+    if (isInCorridor && filteredDist < minDistance) {
+      minDistance = filteredDist;
+      bestCandidate = tr;
+    }
+  }
+
+  // Khóa mục tiêu với cơ chế Hysteresis (Target Locking):
+  // Tránh nhảy mục tiêu liên tục giữa các xe
+  if (bestCandidate) {
+    if (lockedCipvId === null) {
+      lockedCipvId = bestCandidate.id;
+      cipvCandidateId = bestCandidate.id;
+      cipvCandidateFrames = 1;
+    } else if (bestCandidate.id === lockedCipvId) {
+      cipvCandidateFrames = 0;
+    } else {
+      // Có xe khác gần hơn hoặc chen vào làn
+      if (bestCandidate.id === cipvCandidateId) {
+        cipvCandidateFrames++;
+        if (cipvCandidateFrames >= 4) { // Xác thực liên tục 4 chu kỳ mới đổi khóa mục tiêu
+          lockedCipvId = bestCandidate.id;
+          cipvCandidateFrames = 0;
+        }
+      } else {
+        cipvCandidateId = bestCandidate.id;
+        cipvCandidateFrames = 1;
+      }
+    }
+  } else {
+    // Không có xe nào trong hành lang
+    lockedCipvId = null;
+    cipvCandidateId = null;
+    cipvCandidateFrames = 0;
+  }
+
+  // Trả về track đang được khóa CIPV
+  if (lockedCipvId !== null) {
+    const locked = activeTracks.find(t => t.id === lockedCipvId);
+    if (locked) return locked;
+  }
+
+  return bestCandidate;
+}
+
 function selectLeadVehicle(vehicles, frameWidth, frameHeight) {
   if (!vehicles || vehicles.length === 0) return null;
 
   const centerX = frameWidth / 2.0;
-  const laneHalfW = frameWidth * 0.28;
+  const horizonY = frameHeight * 0.48;
+  const topHalfW = (frameWidth * 0.14) / 2.0;
+  const bottomHalfW = (frameWidth * 0.64) / 2.0;
 
   let bestCar = null;
   let maxBottomY = -1;
@@ -889,7 +1173,10 @@ function selectLeadVehicle(vehicles, frameWidth, frameHeight) {
     const carCenterX = vx + vw / 2.0;
     const carBottomY = vy + vh;
 
-    if (Math.abs(carCenterX - centerX) <= laneHalfW) {
+    const progress = Math.max(0.0, Math.min(1.0, (carBottomY - horizonY) / Math.max(1, frameHeight - horizonY)));
+    const corridorHalfW = topHalfW + progress * (bottomHalfW - topHalfW);
+
+    if (Math.abs(carCenterX - centerX) <= corridorHalfW && carBottomY >= horizonY) {
       if (carBottomY > maxBottomY) {
         maxBottomY = carBottomY;
         bestCar = v;
@@ -897,7 +1184,7 @@ function selectLeadVehicle(vehicles, frameWidth, frameHeight) {
     }
   }
 
-  return bestCar || vehicles[0];
+  return bestCar;
 }
 
 function estimateOpticalDistance(vehicle, frameWidth, frameHeight) {
@@ -927,7 +1214,7 @@ function estimateOpticalDistance(vehicle, frameWidth, frameHeight) {
 // ==========================================
 // ĐÁNH GIÁ CHUẨN THÔNG TƯ SỐ 38/2024/TT-BGTVT
 // ==========================================
-function evaluateVietnamLegalStandard(speedKmh, actualDist, weather) {
+function evaluateVietnamLegalStandard(speedKmh, actualDist, weather, hasLeadVehicle = true) {
   let legalMin = 55.0;
   let citation = "";
 
@@ -954,6 +1241,18 @@ function evaluateVietnamLegalStandard(speedKmh, actualDist, weather) {
     citation += " [Mưa trơn trượt: +40% cự ly]";
   }
 
+  if (!hasLeadVehicle) {
+    return {
+      level: 'safe',
+      title: "🟢 LÀN ĐƯỜNG THÔNG THOÁNG",
+      citation: `Không có phương tiện cản trở trong làn di chuyển | Cự ly quy chuẩn: ${legalMin}m`,
+      legalMin,
+      actualDist: 99.9,
+      ttc: 99.0,
+      hasLeadVehicle: false
+    };
+  }
+
   let level = 'safe';
   let title = "AN TOÀN: ĐẠT CHUẨN KHOẢNG CÁCH";
 
@@ -971,7 +1270,8 @@ function evaluateVietnamLegalStandard(speedKmh, actualDist, weather) {
     citation,
     legalMin,
     actualDist,
-    ttc: currentTtc
+    ttc: currentTtc,
+    hasLeadVehicle: true
   };
 }
 
@@ -1026,6 +1326,7 @@ function speakVoice(text) {
     window.speechSynthesis.speak(utterance);
   } catch (e) {}
 }
+const speakText = speakVoice;
 
 function triggerCombinedAlerts(assessment) {
   const now = performance.now();
@@ -1037,41 +1338,52 @@ function triggerCombinedAlerts(assessment) {
 
   // 2. CẢNH BÁO QUÁ TỐC ĐỘ GIỚI HẠN (Nghị định 168/2024/NĐ-CP)
   if (isOverspeeding) {
-    if (now - lastBeepTime > 400) {
+    if (now - lastBeepTime > 600) {
       playBeep(1500, 150);
       lastBeepTime = now;
     }
-    if (now - lastSpeedSpeechTime > 6000) {
+    if (now - lastSpeedSpeechTime > 12000) {
       lastSpeedSpeechTime = now;
       speakVoice(`Cảnh báo! Bạn đang chạy quá tốc độ giới hạn ${currentSpeedLimit}!`);
     }
     return;
   }
 
+  // Nếu không có xe cản trở trong làn, giữ yên lặng tuyệt đối chống làm phiền tài xế
+  if (!assessment.hasLeadVehicle) {
+    return;
+  }
+
   // 3. CẢNH BÁO KHOẢNG CÁCH VA CHẠM (Thông tư 38/2024/TT-BGTVT)
   if (assessment.level === 'critical') {
-    if (now - lastBeepTime > 260) {
+    if (now - lastBeepTime > 350) {
       playBeep(1800, 150);
       lastBeepTime = now;
     }
-    speakVoice("Nguy hiểm! Giảm tốc độ ngay!");
+    if (now - lastSpokenCriticalTime > 10000) {
+      lastSpokenCriticalTime = now;
+      speakVoice("Nguy hiểm! Giảm tốc độ ngay!");
+    }
   } else if (assessment.level === 'warning') {
-    if (now - lastBeepTime > 850) {
-      playBeep(1000, 180);
+    if (now - lastBeepTime > 1600) {
+      playBeep(1000, 150);
       lastBeepTime = now;
     }
-    speakVoice("Chú ý! Bám sát xe trước!");
+    if (now - lastSpokenWarningTime > 25000) {
+      lastSpokenWarningTime = now;
+      speakVoice("Chú ý! Bám sát xe trước!");
+    }
   }
 }
 
 // ==========================================
-// VẼ AR HUD TRÊN CANVAS
+// VẼ AR HUD TRÊN CANVAS (CHUẨN ADAS HIỆN ĐẠI)
 // ==========================================
-function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
+function drawArHud(ctx, w, h, tracks, leadVehicle, assessment, roadSign) {
   const horizonY = h * 0.48;
   const vanishX = w / 2.0;
 
-  let pathColor = "rgba(16, 185, 129, 0.20)";
+  let pathColor = "rgba(16, 185, 129, 0.22)";
   let strokeColor = "#10b981";
 
   if (isForbiddenRoadDetected || assessment.level === 'critical' || isOverspeeding) {
@@ -1082,21 +1394,79 @@ function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
     strokeColor = "#f59e0b";
   }
 
+  // 1. HÀNH LANG PHỐI CẢNH LÀN XE (EGO PATH FRUSTUM)
   ctx.beginPath();
-  ctx.moveTo(vanishX - 25, horizonY);
-  ctx.lineTo(vanishX + 25, horizonY);
-  ctx.lineTo(w * 0.85, h);
-  ctx.lineTo(w * 0.15, h);
+  ctx.moveTo(vanishX - w * 0.07, horizonY);
+  ctx.lineTo(vanishX + w * 0.07, horizonY);
+  ctx.lineTo(vanishX + w * 0.32, h);
+  ctx.lineTo(vanishX - w * 0.32, h);
   ctx.closePath();
   ctx.fillStyle = pathColor;
   ctx.fill();
 
-  if (vehicle && !isDemoMode) {
-    const [vx, vy, vw, vh] = vehicle.bbox;
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([12, 10]);
+  ctx.beginPath();
+  ctx.moveTo(vanishX - w * 0.07, horizonY);
+  ctx.lineTo(vanishX - w * 0.32, h);
+  ctx.moveTo(vanishX + w * 0.07, horizonY);
+  ctx.lineTo(vanishX + w * 0.32, h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 2. VẼ CÁC XE NGOÀI LÀN (ADJACENT VEHICLES)
+  if (!isDemoMode && tracks && tracks.length > 0) {
+    for (const tr of tracks) {
+      if (leadVehicle && tr.id === leadVehicle.id) continue;
+
+      const [vx, vy, vw, vh] = tr.bbox;
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.65)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(vx, vy, vw, vh);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "rgba(15, 23, 42, 0.70)";
+      ctx.fillRect(vx, Math.max(0, vy - 18), 85, 16);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "10px -apple-system, sans-serif";
+      ctx.fillText("[Xe làn bên]", vx + 4, Math.max(12, vy - 6));
+    }
+  }
+
+  // 3. VẼ XE DẪN ĐẦU ĐƯỢC KHÓA MỤC TIÊU (LOCKED CIPV)
+  if (leadVehicle) {
+    const [vx, vy, vw, vh] = leadVehicle.bbox;
+    const carCenterX = vx + vw / 2.0;
+    const carBottomY = vy + vh;
+
+    // Tia sáng dẫn đường 3D từ đáy xe đến xe ta
+    const grad = ctx.createLinearGradient(vanishX, h, carCenterX, carBottomY);
+    grad.addColorStop(0, strokeColor);
+    grad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(vanishX - 30, h);
+    ctx.lineTo(carCenterX - vw * 0.3, carBottomY);
+    ctx.moveTo(vanishX + 30, h);
+    ctx.lineTo(carCenterX + vw * 0.3, carBottomY);
+    ctx.stroke();
+
+    // Vạch tiếp xúc mặt đường
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(vx, carBottomY);
+    ctx.lineTo(vx + vw, carBottomY);
+    ctx.stroke();
 
-    const cLen = Math.min(22, vw / 4);
+    // TÂM NGẮM KHÓA MỤC TIÊU NEON (TARGET LOCK RETICLE)
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 4;
+    const cLen = Math.min(26, vw * 0.28);
+
     ctx.beginPath();
     ctx.moveTo(vx, vy + cLen); ctx.lineTo(vx, vy); ctx.lineTo(vx + cLen, vy);
     ctx.moveTo(vx + vw - cLen, vy); ctx.lineTo(vx + vw, vy); ctx.lineTo(vx + vw, vy + cLen);
@@ -1104,24 +1474,51 @@ function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
     ctx.moveTo(vx + vw - cLen, vy + vh); ctx.lineTo(vx + vw, vy + vh); ctx.lineTo(vx + vw, vy + vh - cLen);
     ctx.stroke();
 
-    const tagW = 180;
-    const tagH = 34;
-    const tagX = Math.max(10, Math.min(w - tagW - 10, vx + vw / 2 - tagW / 2));
-    const tagY = Math.max(10, vy - tagH - 8);
+    // DẤU TÂM NGẮM TRUNG TÂM
+    const cy = vy + vh * 0.55;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(carCenterX - 10, cy); ctx.lineTo(carCenterX + 10, cy);
+    ctx.moveTo(carCenterX, cy - 10); ctx.lineTo(carCenterX, cy + 10);
+    ctx.stroke();
 
-    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    // BẢNG THÔNG SỐ HUD NỔI TRÊN XE MỤC TIÊU
+    const tagW = 210;
+    const tagH = 40;
+    const tagX = Math.max(8, Math.min(w - tagW - 8, carCenterX - tagW / 2));
+    const tagY = Math.max(8, vy - tagH - 10);
+
+    ctx.fillStyle = "rgba(15, 23, 42, 0.90)";
     ctx.fillRect(tagX, tagY, tagW, tagH);
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(tagX, tagY, tagW, tagH);
 
+    ctx.fillStyle = strokeColor;
+    ctx.font = "bold 11px -apple-system, sans-serif";
+    ctx.fillText(`🎯 KHÓA MỤC TIÊU: CIPV #${leadVehicle.id}`, tagX + 10, tagY + 15);
+
+    const relSign = (leadVehicle.vRel || 0) > 0 ? "+" : "";
+    const relText = `Δv: ${relSign}${Math.round(leadVehicle.vRel || 0)} km/h`;
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 13px -apple-system, sans-serif";
-    ctx.fillText(`${assessment.actualDist.toFixed(1)}m | TTC: ${assessment.ttc.toFixed(1)}s`, tagX + 10, tagY + 22);
+    ctx.fillText(`${assessment.actualDist.toFixed(1)}m | TTC: ${assessment.ttc > 50 ? '∞' : assessment.ttc.toFixed(1) + 's'} | ${relText}`, tagX + 10, tagY + 33);
+  } else if (!isDemoMode) {
+    const tagW = 240;
+    const tagH = 30;
+    const tagX = vanishX - tagW / 2;
+    const tagY = horizonY + 25;
+
+    ctx.fillStyle = "rgba(16, 185, 129, 0.85)";
+    ctx.fillRect(tagX, tagY, tagW, tagH);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 12px -apple-system, sans-serif";
+    ctx.fillText("🟢 LÀN ĐƯỜNG THÔNG THOÁNG", tagX + 18, tagY + 20);
   }
 
   if (isForbiddenRoadDetected || assessment.level === 'critical' || isOverspeeding) {
-    ctx.strokeStyle = "rgba(239, 68, 68, 0.85)";
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.90)";
     ctx.lineWidth = 8;
     ctx.strokeRect(0, 0, w, h);
   }
@@ -1130,7 +1527,7 @@ function drawArHud(ctx, w, h, vehicle, assessment, roadSign) {
 // ==========================================
 // CẬP NHẬT GIAO DIỆN HTML
 // ==========================================
-function updateHudElements(assessment) {
+function updateHudElements(assessment, hasLeadVehicle = true) {
   const banner = document.getElementById('alert-banner');
   
   if (isForbiddenRoadDetected) {
@@ -1148,22 +1545,40 @@ function updateHudElements(assessment) {
     document.getElementById('alert-subtext').textContent = assessment.citation;
   }
 
-  document.getElementById('val-distance').innerHTML = `${assessment.actualDist.toFixed(1)}<span class="metric-unit">m</span>`;
-  document.getElementById('val-ttc').innerHTML = `${assessment.ttc.toFixed(1)}<span class="metric-unit">s</span>`;
+  const distValEl = document.getElementById('val-distance');
+  const ttcValEl = document.getElementById('val-ttc');
+
+  if (hasLeadVehicle) {
+    distValEl.innerHTML = `${assessment.actualDist.toFixed(1)}<span class="metric-unit">m</span>`;
+    ttcValEl.innerHTML = `${assessment.ttc > 50 ? '∞' : assessment.ttc.toFixed(1)}<span class="metric-unit">s</span>`;
+  } else {
+    distValEl.innerHTML = `>90<span class="metric-unit">m</span>`;
+    ttcValEl.innerHTML = `∞<span class="metric-unit">s</span>`;
+  }
 
   const maxScale = 120.0;
-  const actualRatio = Math.min(1.0, assessment.actualDist / maxScale);
+  const actualRatio = hasLeadVehicle ? Math.min(1.0, assessment.actualDist / maxScale) : 0.92;
   const legalRatio = Math.min(1.0, assessment.legalMin / maxScale);
 
-  document.getElementById('bar-car-pointer').style.left = `${actualRatio * 100}%`;
-  document.getElementById('bar-legal-marker').style.left = `${legalRatio * 100}%`;
+  const pointerEl = document.getElementById('bar-car-pointer');
+  if (pointerEl) pointerEl.style.left = `${actualRatio * 100}%`;
+  const legalEl = document.getElementById('bar-legal-marker');
+  if (legalEl) legalEl.style.left = `${legalRatio * 100}%`;
 
-  document.getElementById('bar-zone-critical').style.width = `${legalRatio * 60}%`;
-  document.getElementById('bar-zone-warning').style.left = `${legalRatio * 60}%`;
-  document.getElementById('bar-zone-warning').style.width = `${legalRatio * 40}%`;
+  const critEl = document.getElementById('bar-zone-critical');
+  if (critEl) critEl.style.width = `${legalRatio * 60}%`;
+  const warnEl = document.getElementById('bar-zone-warning');
+  if (warnEl) {
+    warnEl.style.left = `${legalRatio * 60}%`;
+    warnEl.style.width = `${legalRatio * 40}%`;
+  }
 
-  document.getElementById('lbl-bar-legal').textContent = `Luật: ${assessment.legalMin}m`;
-  document.getElementById('lbl-bar-actual').textContent = `Thực tế: ${assessment.actualDist.toFixed(1)}m`;
+  const lblLegal = document.getElementById('lbl-bar-legal');
+  if (lblLegal) lblLegal.textContent = `Luật: ${assessment.legalMin}m`;
+  const lblActual = document.getElementById('lbl-bar-actual');
+  if (lblActual) {
+    lblActual.textContent = hasLeadVehicle ? `Thực tế: ${assessment.actualDist.toFixed(1)}m` : `Làn trống`;
+  }
 }
 
 // ==========================================

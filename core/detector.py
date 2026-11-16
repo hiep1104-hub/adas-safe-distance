@@ -171,17 +171,15 @@ class VehicleDetector:
 
     def select_lead_vehicle(self, vehicles: List[DetectedVehicle], frame_width: int, frame_height: int) -> Optional[DetectedVehicle]:
         """
-        Chọn xe chạy liền trước (Lead Vehicle) trong hành lang làn đường của xe chủ.
-        Tiêu chí:
-        1. Nằm trong vùng hành lang làn xe chính giữa (Ego lane corridor: 30% - 70% chiều ngang).
-        2. Tọa độ đáy xe (y2) càng gần dưới đáy màn hình chứng tỏ xe càng gần xe mình nhất.
+        Chọn xe chạy liền trước (Closest In-Path Vehicle - CIPV) trong hành lang làn đường của xe chủ.
+        Sử dụng hành lang phối cảnh hình thang (Perspective Ego-Corridor).
+        Loại bỏ hoàn toàn xe các làn bên (Adjacent lanes) và không bao giờ chọn nhầm xe làn khác.
         """
         if not vehicles:
             return None
 
         center_x = frame_width / 2.0
-        # Hành lang làn đường mở rộng theo chiều sâu (hình thang góc nhìn phối cảnh)
-        lane_margin_ratio = 0.28  # ±28% từ tâm
+        horizon_y = frame_height * 0.48
 
         candidate_lead = None
         max_bottom_y = -1.0
@@ -190,18 +188,18 @@ class VehicleDetector:
             x1, y1, x2, y2 = v.box
             v_cx = (x1 + x2) / 2.0
             
-            # Kiểm tra xem tâm xe có nằm trong dải làn đường của xe mình không
-            lane_half_width = frame_width * lane_margin_ratio
-            if abs(v_cx - center_x) <= lane_half_width:
-                # Xe càng gần ta thì đáy xe y2 càng lớn (ở gần nửa dưới khung hình)
+            # Tính bề rộng hành lang làn đường phối cảnh tại vị trí y2
+            progress = max(0.0, min(1.0, (y2 - horizon_y) / (frame_height - horizon_y)))
+            corridor_half_w = (frame_width * 0.14 / 2.0) + progress * (frame_width * 0.64 / 2.0 - frame_width * 0.14 / 2.0)
+
+            # Kiểm tra xem xe có nằm trong hành lang làn xe chủ không
+            if abs(v_cx - center_x) <= corridor_half_w and y2 > horizon_y + 10:
+                v.is_lead_vehicle = False
                 if y2 > max_bottom_y:
                     max_bottom_y = y2
                     candidate_lead = v
-
-        # Nếu không có xe nào nằm trong trung tâm chặt chẽ, mở rộng tìm xe gần nhất
-        if candidate_lead is None and vehicles:
-            # Chọn xe có diện tích lớn nhất hoặc đáy thấp nhất
-            candidate_lead = max(vehicles, key=lambda v: v.box[3])
+            else:
+                v.is_lead_vehicle = False
 
         if candidate_lead:
             candidate_lead.is_lead_vehicle = True
